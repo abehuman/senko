@@ -33,7 +33,15 @@ the executable permissions, help and version output, print mode, and a local moc
 The following command publishes to the public npm registry and must be run only when the release is approved:
 
 ```sh
-pnpm --dir apps/cli publish --access public
+npm publish ./apps/cli --access public
+```
+
+Senko pins pnpm 10, whose publish command delegates to the installed npm CLI. Publishing with npm directly from the
+workspace root avoids pnpm-to-npm argument-forwarding differences. If npm reports root-owned files in `~/.npm`, use a
+writable temporary cache for the release instead:
+
+```sh
+npm publish ./apps/cli --access public --cache /tmp/senko-npm-publish-cache
 ```
 
 After npm accepts the release, verify the public artifact independently:
