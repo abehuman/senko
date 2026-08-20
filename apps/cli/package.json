@@ -1,0 +1,35 @@
+{
+	"name": "@senko/cli",
+	"version": "0.0.0",
+	"description": "Fast AI coding agent for macOS and Linux terminals",
+	"license": "MIT",
+	"type": "module",
+	"bin": {
+		"senko": "dist/cli.js"
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"dev": "node --enable-source-maps --import tsx src/cli.ts",
+		"prepack": "pnpm build",
+		"typecheck": "tsc -p tsconfig.json --noEmit"
+	},
+	"dependencies": {
+		"@earendil-works/pi-ai": "0.84.2",
+		"@earendil-works/pi-coding-agent": "0.84.2",
+		"@earendil-works/pi-tui": "0.84.2"
+	},
+	"devDependencies": {
+		"tsx": "4.20.5"
+	}
+}
