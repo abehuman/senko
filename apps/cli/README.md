@@ -1,9 +1,9 @@
-# `@senko/cli`
+# `@senkocode/cli`
 
 The Senko terminal coding agent.
 
 ```sh
-npm install --global @senko/cli
+npm install --global @senkocode/cli
 export SENKO_BASE_URL=https://example.com/v1
 export SENKO_API_KEY=your-key
 senko

@@ -98,4 +98,5 @@ See [the architecture](docs/architecture.md), [benchmark definitions](benchmarks
 
 ## Distribution
 
-The CLI package is prepared as `@senko/cli` with the executable name `senko`. Milestone 1 does not publish it.
+The CLI package is prepared as `@senkocode/cli` version `0.1.0`, with the executable name `senko`. It has not been
+published from this repository yet. Follow the [release guide](docs/releasing.md) to verify and publish it.

@@ -89,7 +89,7 @@ try {
 	await mkdir(installDirectory);
 	await writeFile(join(installDirectory, "package.json"), '{"name":"senko-package-smoke","private":true}\n');
 
-	await run("pnpm", ["--filter", "@senko/cli", "pack", "--pack-destination", packDirectory]);
+	await run("pnpm", ["--filter", "@senkocode/cli", "pack", "--pack-destination", packDirectory]);
 	const tarballs = (await readdir(packDirectory)).filter((entry) => entry.endsWith(".tgz"));
 	if (tarballs.length !== 1) {
 		throw new Error(`Expected one package tarball, found ${tarballs.length}.`);
@@ -108,16 +108,25 @@ try {
 	}
 	const version = await run(executable, ["--version"], { cwd: installDirectory });
 	const packageJson = JSON.parse(
-		await readFile(join(installDirectory, "node_modules", "@senko", "cli", "package.json")),
+		await readFile(join(installDirectory, "node_modules", "@senkocode", "cli", "package.json")),
 	);
 	if (version.stdout.trim() !== packageJson.version) {
 		throw new Error(`Version output ${version.stdout.trim()} did not match package ${packageJson.version}.`);
 	}
 
 	mockServer = await startMockServer();
+	const smokeEnvironment = { ...process.env };
+	delete smokeEnvironment.SENKO_API_KEY;
+	Object.assign(smokeEnvironment, {
+		SENKO_API: "openai-completions",
+		SENKO_BASE_URL: mockServer.baseUrl,
+		SENKO_MODEL: "fast",
+		XDG_CONFIG_HOME: join(temporaryRoot, "config"),
+		XDG_STATE_HOME: join(temporaryRoot, "state"),
+	});
 	const printed = await run(executable, ["--print", "smoke test", "--no-session"], {
 		cwd: installDirectory,
-		env: { ...process.env, SENKO_BASE_URL: mockServer.baseUrl },
+		env: smokeEnvironment,
 	});
 	if (printed.stdout !== "package smoke ok\n") {
 		throw new Error(`Unexpected print output: ${JSON.stringify(printed.stdout)}`);

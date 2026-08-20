@@ -1,9 +1,13 @@
 {
 	"name": "senko-workspace",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"private": true,
 	"description": "The Senko fast terminal coding agent workspace",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/abehuman/senko.git"
+	},
 	"type": "module",
 	"packageManager": "pnpm@10.34.1",
 	"engines": {
@@ -11,16 +15,17 @@
 	},
 	"scripts": {
 		"bench": "pnpm build && node benchmarks/cli.mjs",
-		"build": "pnpm --filter @senko/cli build",
+		"build": "pnpm --filter @senkocode/cli build",
 		"check": "pnpm lint && pnpm typecheck && pnpm test",
-		"dev": "pnpm --filter @senko/cli dev",
+		"dev": "pnpm --filter @senkocode/cli dev",
 		"format": "biome format --write .",
 		"lint": "biome check .",
-		"package": "pnpm --filter @senko/cli pack",
+		"package": "pnpm --filter @senkocode/cli pack",
+		"release:check": "pnpm check && pnpm smoke:pack",
 		"smoke:pack": "node scripts/package-smoke.mjs",
 		"test": "pnpm build && vitest run",
 		"test:watch": "pnpm build && vitest",
-		"typecheck": "pnpm --filter @senko/cli typecheck"
+		"typecheck": "pnpm --filter @senkocode/cli typecheck"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.2.2",

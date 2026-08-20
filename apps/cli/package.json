@@ -1,7 +1,18 @@
 {
-	"name": "@senko/cli",
-	"version": "0.0.0",
+	"name": "@senkocode/cli",
+	"version": "0.1.0",
 	"description": "Fast AI coding agent for macOS and Linux terminals",
+	"bugs": {
+		"url": "https://github.com/abehuman/senko/issues"
+	},
+	"homepage": "https://senkocode.com",
+	"keywords": [
+		"ai",
+		"cli",
+		"coding-agent",
+		"terminal",
+		"tui"
+	],
 	"license": "MIT",
 	"type": "module",
 	"bin": {
@@ -15,8 +26,18 @@
 	"engines": {
 		"node": ">=22.19.0"
 	},
+	"os": [
+		"darwin",
+		"linux"
+	],
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/abehuman/senko.git",
+		"directory": "apps/cli"
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
