@@ -78,6 +78,22 @@ describe.sequential("CLI integration", () => {
 		expect(result.stdout).toContain("--language <locale>");
 	});
 
+	it("detects the interface language from the launch environment", async () => {
+		const root = await temporaryDirectory("senko-detected-locale-");
+		const result = await runCli({
+			args: ["--help"],
+			cwd: root,
+			env: {
+				HOME: join(root, "home"),
+				LANG: "ja_JP.UTF-8",
+				XDG_CONFIG_HOME: join(root, "config"),
+			},
+		});
+
+		expect(result).toMatchObject({ code: 0, stderr: "" });
+		expect(result.stdout).toContain("使い方:");
+	});
+
 	it("localizes session listing without requiring inference configuration", async () => {
 		const root = await temporaryDirectory("senko-session-locale-");
 		const result = await runCli({

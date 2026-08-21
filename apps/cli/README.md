@@ -18,4 +18,6 @@ print-mode assistant stdout remains script-friendly. In the interactive TUI, run
 command does not accept additional instructions. `Escape` or `Ctrl+C` cancels active compaction.
 
 Senko's interface supports `en`, `zh-CN`, `zh-TW`, and `ja`. Select one with `--language`, `SENKO_LANGUAGE`, or the
-XDG configuration file's `language` field; otherwise Senko detects the terminal locale and falls back to English.
+XDG configuration file's `language` field; otherwise Senko checks `LC_ALL`, `LC_MESSAGES`, a colon-separated
+`LANGUAGE` preference list, `LANG`, and the Node.js runtime locale before falling back to English. This detection is
+stateless and repeats on every launch.

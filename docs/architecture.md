@@ -7,8 +7,10 @@ Milestone 1 is a pnpm workspace containing only `apps/cli`. A future Cloudflare 
 
 ## Runtime flow
 
-1. Resolve the interface locale from `--language`, `SENKO_LANGUAGE`, the XDG configuration file, or the terminal
-   locale, falling back to English. The best-effort bootstrap never prevents help output when configuration is invalid.
+1. Resolve the interface locale from `--language`, `SENKO_LANGUAGE`, or the XDG configuration file. Without an
+   explicit choice, detect `LC_ALL`, `LC_MESSAGES`, colon-separated `LANGUAGE` preferences, `LANG`, then the Node.js
+   runtime locale before falling back to English. Detection is stateless and repeats on every launch. The best-effort
+   bootstrap never prevents help output when configuration is invalid.
 2. Parse CLI flags with localized usage errors and decide between help, version, session listing, print mode, and
    interactive mode.
 3. Resolve non-secret settings from flags, `SENKO_*` environment variables, and the XDG configuration file.

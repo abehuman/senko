@@ -22,10 +22,20 @@ export async function runCli(options: {
 	timeoutMs?: number;
 }): Promise<CliResult> {
 	const env = { ...process.env };
-	for (const key of ["SENKO_API", "SENKO_API_KEY", "SENKO_BASE_URL", "SENKO_LANGUAGE", "SENKO_MODEL"]) {
+	for (const key of [
+		"LANG",
+		"LANGUAGE",
+		"LC_ALL",
+		"LC_MESSAGES",
+		"SENKO_API",
+		"SENKO_API_KEY",
+		"SENKO_BASE_URL",
+		"SENKO_LANGUAGE",
+		"SENKO_MODEL",
+	]) {
 		delete env[key];
 	}
-	Object.assign(env, options.env, { NO_COLOR: "1" });
+	Object.assign(env, { LANG: "en_US.UTF-8" }, options.env, { NO_COLOR: "1" });
 	const commandArguments = existsSync(builtCliPath)
 		? [builtCliPath, ...options.args]
 		: ["--import", tsxLoader, sourceCliPath, ...options.args];

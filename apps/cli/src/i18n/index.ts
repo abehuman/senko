@@ -105,10 +105,27 @@ async function languageFromConfig(path: string): Promise<string | undefined> {
 	}
 }
 
+export function detectSystemLocale(options: { env: NodeJS.ProcessEnv; runtimeLocale?: string }): Locale | undefined {
+	for (const candidate of [options.env.LC_ALL, options.env.LC_MESSAGES]) {
+		const locale = normalizeLocale(candidate);
+		if (locale) return locale;
+	}
+	for (const candidate of options.env.LANGUAGE?.split(":") ?? []) {
+		const locale = normalizeLocale(candidate);
+		if (locale) return locale;
+	}
+	for (const candidate of [options.env.LANG, options.runtimeLocale]) {
+		const locale = normalizeLocale(candidate);
+		if (locale) return locale;
+	}
+	return undefined;
+}
+
 export async function resolveCliLocale(options: {
 	argv: string[];
 	configPath?: string;
 	env?: NodeJS.ProcessEnv;
+	runtimeLocale?: string;
 }): Promise<Locale> {
 	const env = options.env ?? process.env;
 	for (const candidate of [languageFromArgv(options.argv), env.SENKO_LANGUAGE]) {
@@ -117,9 +134,10 @@ export async function resolveCliLocale(options: {
 	}
 	const configuredLocale = normalizeLocale(await languageFromConfig(options.configPath ?? getConfigPath(env)));
 	if (configuredLocale) return configuredLocale;
-	for (const candidate of [env.LC_ALL, env.LC_MESSAGES, env.LANG]) {
-		const locale = normalizeLocale(candidate);
-		if (locale) return locale;
-	}
-	return "en";
+	return (
+		detectSystemLocale({
+			env,
+			runtimeLocale: options.runtimeLocale ?? Intl.DateTimeFormat().resolvedOptions().locale,
+		}) ?? "en"
+	);
 }

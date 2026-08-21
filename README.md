@@ -72,9 +72,10 @@ There is no compiled production endpoint yet.
 
 The interface supports English (`en`), Simplified Chinese (`zh-CN`), Traditional Chinese (`zh-TW`), and Japanese
 (`ja`). Set it with `--language`, `SENKO_LANGUAGE`, or the `language` configuration field. When none is set, Senko
-detects `LC_ALL`, `LC_MESSAGES`, or `LANG` and falls back to English. Locale aliases such as `ja_JP.UTF-8`, `zh_CN`,
-`zh_Hans`, and `zh_Hant` are accepted. Commands, option names, environment variables, and raw tool output remain
-unchanged across languages.
+detects `LC_ALL`, `LC_MESSAGES`, `LANGUAGE`, `LANG`, then Node.js's runtime locale and falls back to English.
+`LANGUAGE` may contain a colon-separated preference list. Detection is stateless and repeats on every launch until an
+explicit language is set. Locale aliases such as `ja_JP.UTF-8`, `zh_CN`, `zh_Hans`, and `zh_Hant` are accepted.
+Commands, option names, environment variables, and raw tool output remain unchanged across languages.
 
 ```sh
 export SENKO_BASE_URL=https://example.com/v1

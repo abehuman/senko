@@ -2,7 +2,13 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createI18n, normalizeLocale, resolveCliLocale, SUPPORTED_LOCALES } from "../src/i18n/index.js";
+import {
+	createI18n,
+	detectSystemLocale,
+	normalizeLocale,
+	resolveCliLocale,
+	SUPPORTED_LOCALES,
+} from "../src/i18n/index.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -35,6 +41,34 @@ describe("locale resolution", () => {
 		expect(normalizeLocale("fr-FR")).toBeUndefined();
 	});
 
+	it("respects system locale environment precedence", () => {
+		expect(
+			detectSystemLocale({
+				env: {
+					LANG: "en_US.UTF-8",
+					LANGUAGE: "zh-TW:en",
+					LC_ALL: "ja_JP.UTF-8",
+					LC_MESSAGES: "zh_CN.UTF-8",
+				},
+				runtimeLocale: "en-US",
+			}),
+		).toBe("ja");
+	});
+
+	it("uses the first supported LANGUAGE preference before LANG", () => {
+		expect(
+			detectSystemLocale({
+				env: { LANG: "en_US.UTF-8", LANGUAGE: "fr:zh_Hant:ja" },
+				runtimeLocale: "en-US",
+			}),
+		).toBe("zh-TW");
+	});
+
+	it("uses the runtime locale after unsupported environment locales", () => {
+		expect(detectSystemLocale({ env: { LANG: "fr_FR.UTF-8" }, runtimeLocale: "ja-JP" })).toBe("ja");
+		expect(detectSystemLocale({ env: {}, runtimeLocale: "fr-FR" })).toBeUndefined();
+	});
+
 	it("uses command line, environment, config, then terminal locale precedence", async () => {
 		const path = await configPath("ja");
 		expect(
@@ -60,6 +94,7 @@ describe("locale resolution", () => {
 				argv: [],
 				configPath: join(tmpdir(), "missing-senko-config"),
 				env: { LANG: "fr_FR.UTF-8" },
+				runtimeLocale: "fr-FR",
 			}),
 		).toBe("en");
 	});
