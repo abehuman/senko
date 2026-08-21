@@ -1,10 +1,11 @@
 import type { AgentSession, AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import { Container, Editor, ProcessTerminal, Text, TuiMainScreen } from "@earendil-works/pi-tui";
+import { Container, Editor, type OverlayHandle, ProcessTerminal, Text, TuiMainScreen } from "@earendil-works/pi-tui";
 import { type AutoCompactionDisplayEvent, promptWithAutoCompaction } from "../auto-compact.js";
 import type { RuntimeConfig } from "../config.js";
 import { contentToText, projectEvent } from "../events.js";
 import { compactCommandMessage, compactCurrentSession } from "./compact.js";
 import { interruptAction, slashCommandAction } from "./input.js";
+import { listResumableSessions, ResumePicker } from "./resume.js";
 import { cyan, dim, editorTheme, green, red } from "./theme.js";
 
 type SessionMessage = AgentSession["messages"][number];
@@ -63,6 +64,9 @@ export async function runInteractiveMode(options: {
 	let currentThinkingText = "";
 	const tools = new Map<string, { component: Text; label: string }>();
 	let unsubscribeEvents: (() => void) | undefined;
+	let resumeOverlay: OverlayHandle | undefined;
+	let resumeLoading = false;
+	let resumeSwitching = false;
 	const displayAutoCompaction = (projected: AutoCompactionDisplayEvent) => {
 		switch (projected.type) {
 			case "auto_compaction_start":
@@ -174,6 +178,8 @@ export async function runInteractiveMode(options: {
 		const finish = (code: number) => {
 			if (closed) return;
 			closed = true;
+			resumeOverlay?.hide();
+			resumeOverlay = undefined;
 			unsubscribeInput();
 			unsubscribeEvents?.();
 			options.sessionRuntime.setBeforeSessionInvalidate(undefined);
@@ -184,7 +190,7 @@ export async function runInteractiveMode(options: {
 
 		const submit = async (raw: string) => {
 			const prompt = raw.trim();
-			if (!prompt || busy || closed) return;
+			if (!prompt || busy || closed || resumeLoading || resumeSwitching || resumeOverlay) return;
 			const commandAction = slashCommandAction(prompt);
 			if (commandAction === "exit") {
 				finish(0);
@@ -213,7 +219,7 @@ export async function runInteractiveMode(options: {
 					const result = await options.sessionRuntime.newSession();
 					if (!result.cancelled) {
 						terminal.clearScreen();
-						tui.requestRender();
+						tui.requestRender(true);
 					}
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
@@ -228,6 +234,80 @@ export async function runInteractiveMode(options: {
 						footer.setText(dim(idleFooter()));
 						tui.requestRender();
 					}
+				}
+				return;
+			}
+			if (commandAction === "resume-usage") {
+				editor.addToHistory(raw);
+				editor.setText("");
+				transcript.addChild(new Text(red("Usage: /resume"), 1, 0));
+				tui.requestRender();
+				return;
+			}
+			if (commandAction === "resume") {
+				editor.addToHistory(raw);
+				editor.setText("");
+				if (!activeSession.sessionManager.isPersisted()) {
+					transcript.addChild(new Text(red("Saved-session resume is disabled with --no-session."), 1, 0));
+					tui.requestRender();
+					return;
+				}
+				resumeLoading = true;
+				editor.disableSubmit = true;
+				try {
+					const sessions = await listResumableSessions({
+						activeSessionId: activeSession.sessionId,
+						cwd: options.cwd,
+						sessionsDir: activeSession.sessionManager.getSessionDir(),
+					});
+					if (sessions.length === 0) {
+						transcript.addChild(new Text(dim("No saved sessions for this directory."), 1, 0));
+						tui.requestRender();
+						return;
+					}
+					const closePicker = () => {
+						resumeOverlay?.hide();
+						resumeOverlay = undefined;
+					};
+					const resumeSession = async (path: string) => {
+						if (resumeSwitching || closed) return;
+						resumeSwitching = true;
+						closePicker();
+						try {
+							const result = await options.sessionRuntime.switchSession(path);
+							if (!result.cancelled) {
+								terminal.clearScreen();
+								tui.requestRender(true);
+							}
+						} catch (error) {
+							const message = error instanceof Error ? error.message : String(error);
+							terminal.clearScreen();
+							terminal.write(`${red(`senko: could not resume the selected session: ${message}`)}\n`);
+							finish(1);
+							return;
+						} finally {
+							if (!closed) {
+								resumeSwitching = false;
+								editor.disableSubmit = false;
+								footer.setText(dim(idleFooter()));
+								tui.requestRender();
+							}
+						}
+					};
+					resumeOverlay = tui.showOverlay(
+						new ResumePicker(sessions, {
+							onCancel: closePicker,
+							onSelect: (session) => void resumeSession(session.path),
+						}),
+						{ anchor: "center", maxHeight: "70%", width: "90%" },
+					);
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					transcript.addChild(new Text(red(`Could not list saved sessions: ${message}`), 1, 0));
+					tui.requestRender();
+				} finally {
+					resumeLoading = false;
+					if (!resumeSwitching) editor.disableSubmit = false;
 				}
 				return;
 			}
@@ -291,6 +371,8 @@ export async function runInteractiveMode(options: {
 
 		editor.onSubmit = (text) => void submit(text);
 		const unsubscribeInput = tui.addInputListener((data) => {
+			if (resumeOverlay) return undefined;
+			if (resumeLoading || resumeSwitching) return { consume: true };
 			const action = interruptAction(data, busy);
 			if (action === "abort") {
 				activePromptCancelled = true;

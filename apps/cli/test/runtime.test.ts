@@ -96,4 +96,43 @@ describe("session runtime", () => {
 			await runtime.sessionRuntime.dispose();
 		}
 	});
+
+	it("switches to a saved session without sending a model request for the transition", async () => {
+		const root = await temporaryDirectory("senko-runtime-resume-");
+		const cwd = join(root, "workspace");
+		const sessionsDir = join(root, "state", "sessions");
+		await mkdir(cwd, { recursive: true });
+		const server = await startMockInferenceServer({ protocol: "openai-completions" });
+		openServers.push(server);
+		const runtime = await createRuntime({
+			config: runtimeConfig(root, server.baseUrl),
+			cwd,
+			home: join(root, "home"),
+			sessionManager: SessionManager.create(cwd, sessionsDir),
+		});
+
+		try {
+			await runtime.sessionRuntime.session.prompt("saved session prompt", { source: "interactive" });
+			const savedSessionId = runtime.sessionRuntime.session.sessionId;
+			const savedSessionPath = runtime.sessionRuntime.session.sessionFile;
+			expect(savedSessionPath).toBeTruthy();
+
+			await runtime.sessionRuntime.newSession();
+			await runtime.sessionRuntime.session.prompt("other session prompt", { source: "interactive" });
+			const requestCountBeforeResume = server.requests.length;
+
+			await runtime.sessionRuntime.switchSession(savedSessionPath ?? "");
+
+			expect(runtime.sessionRuntime.session.sessionId).toBe(savedSessionId);
+			expect(server.requests).toHaveLength(requestCountBeforeResume);
+
+			await runtime.sessionRuntime.session.prompt("resumed session prompt", { source: "interactive" });
+			const lastRequest = JSON.stringify(server.requests.at(-1)?.body);
+			expect(lastRequest).toContain("saved session prompt");
+			expect(lastRequest).toContain("resumed session prompt");
+			expect(lastRequest).not.toContain("other session prompt");
+		} finally {
+			await runtime.sessionRuntime.dispose();
+		}
+	});
 });

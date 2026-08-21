@@ -42,7 +42,15 @@ describe("interactive slash commands", () => {
 		expect(slashCommandAction("/new release prep")).toBe("new-session-usage");
 	});
 
-	it.each(["/model", "/plan", "/resume"])("returns the not-built placeholder for %s", (command) => {
+	it("opens the session picker for /resume", () => {
+		expect(slashCommandAction("/resume")).toBe("resume");
+	});
+
+	it("does not accept arguments for /resume", () => {
+		expect(slashCommandAction("/resume session-id")).toBe("resume-usage");
+	});
+
+	it.each(["/model", "/plan"])("returns the not-built placeholder for %s", (command) => {
 		expect(slashCommandAction(command)).toBe("not-built");
 		expect(slashCommandAction(`${command} example argument`)).toBe("not-built");
 	});

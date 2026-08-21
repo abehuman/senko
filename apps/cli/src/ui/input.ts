@@ -8,6 +8,8 @@ export type SlashCommandAction =
 	| "new-session"
 	| "new-session-usage"
 	| "not-built"
+	| "resume"
+	| "resume-usage"
 	| undefined;
 
 const placeholderSlashCommands = new Set([
@@ -15,8 +17,6 @@ const placeholderSlashCommands = new Set([
 	"/model",
 	// Enables plan mode; edit mode remains the default, but this is not built yet.
 	"/plan",
-	// Opens a previous session, but is not built yet.
-	"/resume",
 ]);
 
 export function interruptAction(data: string, busy: boolean): InterruptAction {
@@ -43,6 +43,9 @@ export function slashCommandAction(input: string): SlashCommandAction {
 	}
 	if (command === "/clear" || command === "/new") {
 		return normalized === command ? "new-session" : "new-session-usage";
+	}
+	if (command === "/resume") {
+		return normalized === command ? "resume" : "resume-usage";
 	}
 	if (command && placeholderSlashCommands.has(command)) {
 		return "not-built";

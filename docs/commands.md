@@ -16,7 +16,7 @@
 - [x] `/clear`
 - [x] `/new`
 - [ ] `/plan`
-- [ ] `/resume`
+- [x] `/resume`
 - [x] `/exit`
 - [x] `/quit`
 
