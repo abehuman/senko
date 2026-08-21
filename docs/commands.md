@@ -1,5 +1,8 @@
 # Commands run with slash
 
+Typing `/` in the interactive editor opens the command menu. Continue typing to filter it, then use
+Up/Down and Enter (or Tab) to choose a command. For example, `/c` selects `/compact` first.
+
 - `/model` ... change model and effort
 - `/compact` ... compact context current session using AI
 - `/clear` ... clear the current entire session from ui and start a new chat session

@@ -1,4 +1,4 @@
-import { Key, matchesKey } from "@earendil-works/pi-tui";
+import { Key, matchesKey, type SlashCommand } from "@earendil-works/pi-tui";
 
 export type InterruptAction = "abort" | "exit" | undefined;
 export type SlashCommandAction =
@@ -18,6 +18,17 @@ const placeholderSlashCommands = new Set([
 	// Enables plan mode; edit mode remains the default, but this is not built yet.
 	"/plan",
 ]);
+
+export const slashCommands: SlashCommand[] = [
+	{ name: "compact", description: "Compact the current session context" },
+	{ name: "clear", description: "Start a new session" },
+	{ name: "new", description: "Start a new session" },
+	{ name: "resume", description: "Resume a saved session" },
+	{ name: "model", description: "Change model and effort" },
+	{ name: "plan", description: "Switch between edit and plan mode" },
+	{ name: "exit", description: "Exit Senko" },
+	{ name: "quit", description: "Exit Senko" },
+];
 
 export function interruptAction(data: string, busy: boolean): InterruptAction {
 	if (matchesKey(data, Key.escape)) {

@@ -1,10 +1,18 @@
 import type { AgentSession, AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import { Container, Editor, type OverlayHandle, ProcessTerminal, Text, TuiMainScreen } from "@earendil-works/pi-tui";
+import {
+	CombinedAutocompleteProvider,
+	Container,
+	Editor,
+	type OverlayHandle,
+	ProcessTerminal,
+	Text,
+	TuiMainScreen,
+} from "@earendil-works/pi-tui";
 import { type AutoCompactionDisplayEvent, promptWithAutoCompaction } from "../auto-compact.js";
 import type { RuntimeConfig } from "../config.js";
 import { contentToText, projectEvent } from "../events.js";
 import { compactCommandMessage, compactCurrentSession } from "./compact.js";
-import { interruptAction, slashCommandAction } from "./input.js";
+import { interruptAction, slashCommandAction, slashCommands } from "./input.js";
 import { listResumableSessions, ResumePicker } from "./resume.js";
 import { cyan, dim, editorTheme, green, red } from "./theme.js";
 
@@ -42,6 +50,7 @@ export async function runInteractiveMode(options: {
 	const transcript = new Container();
 	const header = new Text(`${cyan("senko")} ${dim("fast coding agent")}`, 1, 0);
 	const editor = new Editor(tui, editorTheme, { paddingX: 1 });
+	editor.setAutocompleteProvider(new CombinedAutocompleteProvider(slashCommands, options.cwd));
 	let activeSession = options.sessionRuntime.session;
 	const sessionLabel = () => activeSession.sessionId.slice(0, 12);
 	const idleFooter = () => `${options.config.model} · ${options.config.api} · ${options.cwd} · ${sessionLabel()}`;

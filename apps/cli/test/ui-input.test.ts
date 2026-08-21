@@ -1,5 +1,6 @@
+import { CombinedAutocompleteProvider } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
-import { interruptAction, slashCommandAction } from "../src/ui/input.js";
+import { interruptAction, slashCommandAction, slashCommands } from "../src/ui/input.js";
 
 describe("interactive cancellation", () => {
 	it("aborts active work with Escape or Ctrl+C", () => {
@@ -15,6 +16,35 @@ describe("interactive cancellation", () => {
 });
 
 describe("interactive slash commands", () => {
+	it("suggests slash commands and prioritizes /compact for /c", async () => {
+		const provider = new CombinedAutocompleteProvider(slashCommands, process.cwd());
+		const suggestions = await provider.getSuggestions(["/c"], 0, 2, { signal: new AbortController().signal });
+
+		expect(suggestions?.items.map((item) => item.value)).toEqual(["compact", "clear"]);
+		const compact = suggestions?.items[0];
+		if (!suggestions || !compact) throw new Error("Expected /compact suggestion");
+		expect(provider.applyCompletion(["/c"], 0, 2, compact, suggestions.prefix)).toMatchObject({
+			cursorCol: 9,
+			lines: ["/compact "],
+		});
+	});
+
+	it("lists every documented command when the user types slash", async () => {
+		const provider = new CombinedAutocompleteProvider(slashCommands, process.cwd());
+		const suggestions = await provider.getSuggestions(["/"], 0, 1, { signal: new AbortController().signal });
+
+		expect(suggestions?.items.map((item) => item.value)).toEqual([
+			"compact",
+			"clear",
+			"new",
+			"resume",
+			"model",
+			"plan",
+			"exit",
+			"quit",
+		]);
+	});
+
 	it("exits for /exit and its /quit alias", () => {
 		expect(slashCommandAction("/exit")).toBe("exit");
 		expect(slashCommandAction("  /quit  ")).toBe("exit");
