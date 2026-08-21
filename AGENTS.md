@@ -19,4 +19,4 @@ thinking effort ui was too complicated so changed icon and text to simplify.`
 - Use Node.js 22.19.0 or newer and pnpm 10.34.1.
 - Run `pnpm check` before handing off code changes.
 - Keep the CLI independent from Pi's `~/.pi` and project `.pi` configuration.
-- Do not add an inference API implementation under `apps/api` until that milestone is explicitly started.
+- Do not add an inference API implementation under `apps/api` until that milestone is explicitly started. `apps/api` is only for users who wants to use Senko managed inference service.
