@@ -31,6 +31,6 @@ Research each command before implementing it. Detailed findings belong under `do
 | `/clear` | Not started |
 | `/new` | Not started |
 | `/plan` | [`docs/research/plan`](research/plan/README.md) |
-| `/resume` | Not started |
+| `/resume` | [`docs/research/resume`](research/resume/README.md) |
 | `/exit` | Not needed; implemented |
 | `/quit` | Not needed; implemented alias |
