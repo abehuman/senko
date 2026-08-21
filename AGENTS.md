@@ -6,6 +6,17 @@ Update this doc if something is wrong/outdated.
 
 - This is a repo of senko, ai cli coding agent that works in mac/linux terminal aiming to be fastest.
 
+## Documentation
+
+- Main documentation files are:
+  - `README.md`: product overview, CLI usage, configuration, sessions, and resources.
+  - `apps/cli/README.md`: published CLI package overview.
+  - `docs/architecture.md`: runtime boundaries, storage, and performance policy.
+  - `docs/commands.md`: slash-command behavior, implementation status, and research links.
+  - `docs/inference-api.md`: future managed inference service contract.
+  - `docs/releasing.md`: package release process.
+- When implementation changes behavior, configuration, command status, architecture, the API contract, or the release workflow, update the relevant main documentation in the same change and keep overlapping descriptions consistent.
+
 ## Git
 
 - Use conventional commit-style messages and PR titles: `type(scope): summary`. and always add details after summary with line break.
