@@ -3,16 +3,28 @@ import { promptWithAutoCompaction } from "./auto-compact.js";
 import type { RuntimeConfig } from "./config.js";
 import { SenkoError } from "./errors.js";
 import { type DisplayEvent, projectEvent } from "./events.js";
+import { defaultI18n, type I18n } from "./i18n/index.js";
 
 export interface PrintIo {
 	stderr: Pick<NodeJS.WriteStream, "write">;
 	stdout: Pick<NodeJS.WriteStream, "write">;
 }
 
-export function printDiagnostics(diagnostics: ResourceDiagnostic[], stderr: PrintIo["stderr"]): void {
+function diagnosticType(type: ResourceDiagnostic["type"], i18n: I18n): string {
+	if (type === "collision") return i18n.t("diagnosticCollision");
+	if (type === "error") return i18n.t("diagnosticError");
+	if (type === "warning") return i18n.t("diagnosticWarning");
+	return type;
+}
+
+export function printDiagnostics(
+	diagnostics: ResourceDiagnostic[],
+	stderr: PrintIo["stderr"],
+	i18n: I18n = defaultI18n,
+): void {
 	for (const diagnostic of diagnostics) {
 		const location = diagnostic.path ? ` (${diagnostic.path})` : "";
-		stderr.write(`senko: ${diagnostic.type}: ${diagnostic.message}${location}\n`);
+		stderr.write(`senko: ${diagnosticType(diagnostic.type, i18n)}: ${diagnostic.message}${location}\n`);
 	}
 }
 
@@ -21,6 +33,7 @@ export async function runPrintMode(
 	prompt: string,
 	config: Pick<RuntimeConfig, "contextWindow" | "maxOutputTokens">,
 	io: PrintIo = { stderr: process.stderr, stdout: process.stdout },
+	i18n: I18n = defaultI18n,
 ): Promise<number> {
 	let wroteText = false;
 	let errorMessage: string | undefined;
@@ -50,7 +63,9 @@ export async function runPrintMode(
 				if (projected.text) io.stderr.write(`${projected.text}\n`);
 				break;
 			case "tool_end":
-				io.stderr.write(`${projected.isError ? "✗" : "✓"} tool ${projected.isError ? "failed" : "finished"}`);
+				io.stderr.write(
+					`${projected.isError ? "✗" : "✓"} ${projected.isError ? i18n.t("toolFailed") : i18n.t("toolFinished")}`,
+				);
 				if (projected.text) io.stderr.write(`: ${projected.text}`);
 				io.stderr.write("\n");
 				break;
@@ -60,7 +75,7 @@ export async function runPrintMode(
 		}
 	};
 	const unsubscribe = session.subscribe((event) => {
-		for (const projected of projectEvent(event)) {
+		for (const projected of projectEvent(event, i18n)) {
 			display(projected);
 		}
 	});
@@ -77,6 +92,7 @@ export async function runPrintMode(
 	try {
 		promptResult = await promptWithAutoCompaction({
 			config,
+			i18n,
 			isCancelled: () => interrupted,
 			onDisplayEvent: display,
 			prompt,

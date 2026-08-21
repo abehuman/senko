@@ -1,6 +1,7 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import { contentToText, projectEvent } from "../src/events.js";
+import { createI18n } from "../src/i18n/index.js";
 
 function event(value: unknown): AgentSessionEvent {
 	return value as AgentSessionEvent;
@@ -119,5 +120,15 @@ describe("TUI event projection", () => {
 				willRetry: false,
 			},
 		]);
+	});
+
+	it("localizes Senko-owned event fallbacks while preserving provider details", () => {
+		const japanese = createI18n("ja");
+		expect(projectEvent(event({ type: "compaction_start", reason: "threshold" }), japanese)[0]).toMatchObject({
+			text: "上限に達する前にコンテキストを自動圧縮しています…",
+		});
+		expect(
+			projectEvent(event({ type: "message_end", message: { role: "assistant", stopReason: "error" } }), japanese),
+		).toEqual([{ text: "推論リクエストに失敗しました。", type: "error" }]);
 	});
 });

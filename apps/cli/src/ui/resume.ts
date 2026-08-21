@@ -1,16 +1,14 @@
 import { type SessionInfo, SessionManager } from "@earendil-works/pi-coding-agent";
 import { type Component, type SelectItem, SelectList } from "@earendil-works/pi-tui";
+import { defaultI18n, type I18n } from "../i18n/index.js";
 import { cyan, dim, editorTheme } from "./theme.js";
 
-function sessionLabel(session: SessionInfo): string {
-	return session.name || session.firstMessage.replace(/\s+/g, " ").trim() || "(empty session)";
+function sessionLabel(session: SessionInfo, i18n: I18n): string {
+	return session.name || session.firstMessage.replace(/\s+/g, " ").trim() || i18n.t("sessionEmpty");
 }
 
-function sessionTime(session: SessionInfo): string {
-	return session.modified
-		.toISOString()
-		.replace("T", " ")
-		.replace(/\.\d{3}Z$/, "Z");
+function sessionTime(session: SessionInfo, i18n: I18n): string {
+	return i18n.dateTime(session.modified);
 }
 
 export function resumableSessions(sessions: SessionInfo[], activeSessionId: string): SessionInfo[] {
@@ -27,9 +25,9 @@ export async function listResumableSessions(options: {
 	return resumableSessions(await SessionManager.list(options.cwd, options.sessionsDir), options.activeSessionId);
 }
 
-export function resumeSessionItems(sessions: SessionInfo[]): SelectItem[] {
+export function resumeSessionItems(sessions: SessionInfo[], i18n: I18n = defaultI18n): SelectItem[] {
 	return sessions.map((session) => ({
-		description: `${sessionTime(session)} · ${session.messageCount} messages · ${sessionLabel(session)}`,
+		description: `${sessionTime(session, i18n)} · ${i18n.t("sessionMessages", { count: session.messageCount })} · ${sessionLabel(session, i18n)}`,
 		label: session.id.slice(0, 12),
 		value: session.path,
 	}));
@@ -45,9 +43,10 @@ export class ResumePicker implements Component {
 			onCancel(): void;
 			onSelect(session: SessionInfo): void;
 		},
+		private readonly i18n: I18n = defaultI18n,
 	) {
 		this.sessionsByPath = new Map(sessions.map((session) => [session.path, session]));
-		this.selectList = new SelectList(resumeSessionItems(sessions), 8, editorTheme.selectList);
+		this.selectList = new SelectList(resumeSessionItems(sessions, this.i18n), 8, editorTheme.selectList);
 		this.selectList.onCancel = callbacks.onCancel;
 		this.selectList.onSelect = (item) => {
 			const session = this.sessionsByPath.get(item.value);
@@ -64,11 +63,7 @@ export class ResumePicker implements Component {
 	}
 
 	render(width: number): string[] {
-		return [
-			cyan("Resume session"),
-			dim("↑/↓ select · Enter resume · Esc cancel"),
-			"",
-			...this.selectList.render(width),
-		];
+		const i18n = this.i18n;
+		return [cyan(i18n.t("resumeTitle")), dim(i18n.t("resumeHint")), "", ...this.selectList.render(width)];
 	}
 }

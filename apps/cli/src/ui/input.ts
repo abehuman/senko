@@ -1,4 +1,5 @@
 import { Key, matchesKey, type SlashCommand } from "@earendil-works/pi-tui";
+import { defaultI18n, type I18n } from "../i18n/index.js";
 
 export type InterruptAction = "abort" | "exit" | undefined;
 export type SlashCommandAction =
@@ -19,16 +20,20 @@ const placeholderSlashCommands = new Set([
 	"/plan",
 ]);
 
-export const slashCommands: SlashCommand[] = [
-	{ name: "compact", description: "Compact the current session context" },
-	{ name: "clear", description: "Start a new session" },
-	{ name: "new", description: "Start a new session" },
-	{ name: "resume", description: "Resume a saved session" },
-	{ name: "model", description: "Change model and effort" },
-	{ name: "plan", description: "Switch between edit and plan mode" },
-	{ name: "exit", description: "Exit Senko" },
-	{ name: "quit", description: "Exit Senko" },
-];
+export function createSlashCommands(i18n: I18n = defaultI18n): SlashCommand[] {
+	return [
+		{ name: "compact", description: i18n.t("commandCompactDescription") },
+		{ name: "clear", description: i18n.t("commandNewDescription") },
+		{ name: "new", description: i18n.t("commandNewDescription") },
+		{ name: "resume", description: i18n.t("commandResumeDescription") },
+		{ name: "model", description: i18n.t("commandModelDescription") },
+		{ name: "plan", description: i18n.t("commandPlanDescription") },
+		{ name: "exit", description: i18n.t("commandExitDescription") },
+		{ name: "quit", description: i18n.t("commandExitDescription") },
+	];
+}
+
+export const slashCommands = createSlashCommands();
 
 export function interruptAction(data: string, busy: boolean): InterruptAction {
 	if (matchesKey(data, Key.escape)) {

@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { UsageError } from "./errors.js";
+import { defaultI18n, type I18n, type Locale, normalizeLocale } from "./i18n/index.js";
 
 export type SenkoApi = "openai-completions" | "openai-responses";
 
@@ -9,6 +10,7 @@ export interface CliArgs {
 	command: "run" | "sessions";
 	continueSession: boolean;
 	help: boolean;
+	language?: Locale;
 	model?: string;
 	noSession: boolean;
 	print: boolean;
@@ -17,7 +19,23 @@ export interface CliArgs {
 	version: boolean;
 }
 
-export function parseCliArgs(argv: string[]): CliArgs {
+function localizedParseError(error: unknown, i18n: I18n): string | undefined {
+	if (!(error instanceof Error)) return undefined;
+	const code = (error as NodeJS.ErrnoException).code;
+	const option = error.message.match(/'([^']+)'/)?.[1];
+	if (!option) return undefined;
+	if (code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
+		return i18n.t("usageUnknownOption", { option });
+	}
+	if (code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
+		return error.message.includes("argument missing")
+			? i18n.t("usageMissingOptionValue", { option })
+			: i18n.t("usageOptionTakesNoValue", { option });
+	}
+	return undefined;
+}
+
+export function parseCliArgs(argv: string[], i18n: I18n = defaultI18n): CliArgs {
 	try {
 		const parsed = parseArgs({
 			args: argv,
@@ -27,6 +45,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
 				"base-url": { type: "string" },
 				continue: { type: "boolean", short: "c", default: false },
 				help: { type: "boolean", short: "h", default: false },
+				language: { type: "string" },
 				model: { type: "string" },
 				"no-session": { type: "boolean", default: false },
 				print: { type: "boolean", short: "p", default: false },
@@ -41,7 +60,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
 		if (command === "sessions") {
 			positionals.shift();
 			if (positionals.length > 0) {
-				throw new UsageError("The sessions command does not accept positional arguments.");
+				throw new UsageError(i18n.t("usageSessionsPositionals"));
 			}
 		}
 
@@ -49,13 +68,18 @@ export function parseCliArgs(argv: string[]): CliArgs {
 		const resumeId = parsed.values.resume;
 		const noSession = parsed.values["no-session"] ?? false;
 		if (continueSession && resumeId) {
-			throw new UsageError("--continue and --resume cannot be used together.");
+			throw new UsageError(i18n.t("usageContinueResume"));
 		}
 		if (noSession && (continueSession || resumeId)) {
-			throw new UsageError("--no-session cannot be combined with --continue or --resume.");
+			throw new UsageError(i18n.t("usageNoSessionResume"));
 		}
 		if (command === "sessions" && (continueSession || resumeId || noSession || parsed.values.print)) {
-			throw new UsageError("Session run options cannot be used with the sessions command.");
+			throw new UsageError(i18n.t("usageSessionOptions"));
+		}
+		const rawLanguage = parsed.values.language;
+		const language = normalizeLocale(rawLanguage);
+		if (rawLanguage !== undefined && language === undefined) {
+			throw new UsageError(i18n.t("languageUnsupported", { value: rawLanguage }));
 		}
 
 		return {
@@ -64,6 +88,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
 			command,
 			continueSession,
 			help: parsed.values.help ?? false,
+			language,
 			model: parsed.values.model,
 			noSession,
 			print: parsed.values.print ?? false,
@@ -76,33 +101,12 @@ export function parseCliArgs(argv: string[]): CliArgs {
 			throw error;
 		}
 		const message = error instanceof Error ? error.message : String(error);
-		throw new UsageError(message, { cause: error });
+		throw new UsageError(localizedParseError(error, i18n) ?? message, { cause: error });
 	}
 }
 
-export const HELP_TEXT = `Senko — fast terminal coding agent
+export function helpText(i18n: I18n = defaultI18n): string {
+	return i18n.t("helpText");
+}
 
-Usage:
-  senko [options] [initial prompt]
-  senko sessions
-
-Options:
-  -p, --print                 Print one response and exit
-  -c, --continue              Continue the newest session for this directory
-  -r, --resume <session-id>   Resume a session by ID or unique ID prefix
-      --no-session            Keep the session in memory only
-      --base-url <url>        OpenAI-compatible API root (normally ends in /v1)
-      --model <id>            Model ID (default: fast)
-      --api <protocol>        openai-completions or openai-responses
-  -h, --help                  Show help
-  -v, --version               Show version
-
-Environment:
-  SENKO_BASE_URL              API root; required until Senko's service launches
-  SENKO_API_KEY               Bearer key; required except for loopback endpoints
-  SENKO_MODEL                 Model ID
-  SENKO_API                   API protocol (default: openai-completions)
-
-Safety:
-  Senko runs read, write, edit, and shell tools automatically without a sandbox.
-`;
+export const HELP_TEXT = helpText();

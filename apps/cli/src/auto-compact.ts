@@ -1,5 +1,6 @@
 import { type AgentSession, type CompactionResult, estimateTokens } from "@earendil-works/pi-coding-agent";
 import type { RuntimeConfig } from "./config.js";
+import { defaultI18n, type I18n } from "./i18n/index.js";
 
 const MAX_RECENT_TOKENS = 20_000;
 const SUMMARY_OUTPUT_RATIO = 0.8;
@@ -56,30 +57,25 @@ export function createAutoCompactionSettings(
 	};
 }
 
-function tokenCount(value: number): string {
-	return value.toLocaleString("en-US");
-}
-
 export function autoCompactionStartEvent(
 	reason: "overflow" | "threshold",
+	i18n: I18n = defaultI18n,
 ): Extract<AutoCompactionDisplayEvent, { type: "auto_compaction_start" }> {
 	return {
 		reason,
-		text:
-			reason === "overflow"
-				? "Context limit reached; auto-compacting before retry…"
-				: "Auto-compacting context before the limit…",
+		text: reason === "overflow" ? i18n.t("autoCompactionOverflow") : i18n.t("autoCompactionThreshold"),
 		type: "auto_compaction_start",
 	};
 }
 
 export function autoCompactionEndEvent(
 	details: CompactionEndDetails,
+	i18n: I18n = defaultI18n,
 ): Extract<AutoCompactionDisplayEvent, { type: "auto_compaction_end" }> {
 	if (details.aborted) {
 		return {
 			status: "cancelled",
-			text: "Auto-compaction cancelled.",
+			text: i18n.t("autoCompactionCancelled"),
 			type: "auto_compaction_end",
 			willRetry: false,
 		};
@@ -87,7 +83,7 @@ export function autoCompactionEndEvent(
 	if (!details.result) {
 		return {
 			status: "error",
-			text: details.errorMessage ?? "Auto-compaction failed.",
+			text: details.errorMessage ?? i18n.t("autoCompactionFailed"),
 			type: "auto_compaction_end",
 			willRetry: false,
 		};
@@ -95,11 +91,14 @@ export function autoCompactionEndEvent(
 
 	const compacted =
 		details.result.estimatedTokensAfter === undefined
-			? `Context auto-compacted (${tokenCount(details.result.tokensBefore)} tokens before).`
-			: `Context auto-compacted: ${tokenCount(details.result.tokensBefore)} → ~${tokenCount(details.result.estimatedTokensAfter)} tokens.`;
+			? i18n.t("autoCompactedBefore", { before: details.result.tokensBefore })
+			: i18n.t("autoCompactedAfter", {
+					after: details.result.estimatedTokensAfter,
+					before: details.result.tokensBefore,
+				});
 	return {
 		status: "success",
-		text: details.willRetry ? `${compacted} Retrying the request.` : compacted,
+		text: details.willRetry ? `${compacted} ${i18n.t("retryingRequest")}` : compacted,
 		type: "auto_compaction_end",
 		willRetry: details.willRetry,
 	};
@@ -155,39 +154,45 @@ function isCancellation(error: unknown): boolean {
  */
 export async function promptWithAutoCompaction(options: {
 	config: Pick<RuntimeConfig, "contextWindow" | "maxOutputTokens">;
+	i18n?: I18n;
 	isCancelled?: () => boolean;
 	onDisplayEvent?: (event: AutoCompactionDisplayEvent) => void;
 	prompt: string;
 	session: PromptableSession;
 }): Promise<PromptWithAutoCompactionResult> {
+	const i18n = options.i18n ?? defaultI18n;
 	const budget = pendingPromptBudget(options.session, options.prompt, options.config);
 	if (budget && budget.totalTokens > budget.safeThreshold) {
-		options.onDisplayEvent?.(autoCompactionStartEvent("threshold"));
+		options.onDisplayEvent?.(autoCompactionStartEvent("threshold", i18n));
 		try {
 			const result = await options.session.compact();
 			if (
 				result.estimatedTokensAfter !== undefined &&
 				result.estimatedTokensAfter + budget.promptTokens > budget.safeThreshold
 			) {
-				const message =
-					"Context was compacted, but the pending prompt still exceeds the safe context budget. Shorten the prompt or configure a larger contextWindow.";
-				options.onDisplayEvent?.(autoCompactionEndEvent({ aborted: false, errorMessage: message, willRetry: false }));
+				const message = i18n.t("contextStillTooLarge");
+				options.onDisplayEvent?.(
+					autoCompactionEndEvent({ aborted: false, errorMessage: message, willRetry: false }, i18n),
+				);
 				return { message, status: "compaction-error" };
 			}
-			options.onDisplayEvent?.(autoCompactionEndEvent({ aborted: false, result, willRetry: false }));
+			options.onDisplayEvent?.(autoCompactionEndEvent({ aborted: false, result, willRetry: false }, i18n));
 		} catch (error) {
 			if (isCancellation(error)) {
-				options.onDisplayEvent?.(autoCompactionEndEvent({ aborted: true, willRetry: false }));
+				options.onDisplayEvent?.(autoCompactionEndEvent({ aborted: true, willRetry: false }, i18n));
 				return { status: "cancelled" };
 			}
 			const message = error instanceof Error ? error.message : String(error);
-			const displayMessage = `Auto-compaction failed: ${message}`;
+			const displayMessage = i18n.t("autoCompactionFailedWithDetail", { message });
 			options.onDisplayEvent?.(
-				autoCompactionEndEvent({
-					aborted: false,
-					errorMessage: displayMessage,
-					willRetry: false,
-				}),
+				autoCompactionEndEvent(
+					{
+						aborted: false,
+						errorMessage: displayMessage,
+						willRetry: false,
+					},
+					i18n,
+				),
 			);
 			return { message: displayMessage, status: "compaction-error" };
 		}

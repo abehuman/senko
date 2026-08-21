@@ -1,5 +1,6 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { type AutoCompactionDisplayEvent, autoCompactionEndEvent, autoCompactionStartEvent } from "./auto-compact.js";
+import { defaultI18n, type I18n } from "./i18n/index.js";
 
 export type DisplayEvent =
 	| { type: "assistant_start" }
@@ -63,20 +64,23 @@ function summarizeArgs(args: unknown): string {
 	return compact(args, 160);
 }
 
-export function projectEvent(event: AgentSessionEvent): DisplayEvent[] {
+export function projectEvent(event: AgentSessionEvent, i18n: I18n = defaultI18n): DisplayEvent[] {
 	switch (event.type) {
 		case "compaction_start":
 			if (event.reason === "manual") return [];
-			return [autoCompactionStartEvent(event.reason)];
+			return [autoCompactionStartEvent(event.reason, i18n)];
 		case "compaction_end":
 			if (event.reason === "manual") return [];
 			return [
-				autoCompactionEndEvent({
-					aborted: event.aborted,
-					errorMessage: event.errorMessage,
-					result: event.result,
-					willRetry: event.willRetry,
-				}),
+				autoCompactionEndEvent(
+					{
+						aborted: event.aborted,
+						errorMessage: event.errorMessage,
+						result: event.result,
+						willRetry: event.willRetry,
+					},
+					i18n,
+				),
 			];
 		case "message_start":
 			return event.message.role === "assistant" ? [{ type: "assistant_start" }] : [];
@@ -89,13 +93,13 @@ export function projectEvent(event: AgentSessionEvent): DisplayEvent[] {
 				return [{ type: "thinking_delta", text: update.delta }];
 			}
 			if (update.type === "error") {
-				return [{ type: "error", text: update.error.errorMessage ?? "Inference request failed." }];
+				return [{ type: "error", text: update.error.errorMessage ?? i18n.t("inferenceFailed") }];
 			}
 			return [];
 		}
 		case "message_end":
 			if (event.message.role === "assistant" && event.message.stopReason === "error") {
-				return [{ type: "error", text: event.message.errorMessage ?? "Inference request failed." }];
+				return [{ type: "error", text: event.message.errorMessage ?? i18n.t("inferenceFailed") }];
 			}
 			return [];
 		case "tool_execution_start": {

@@ -13,6 +13,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { createAutoCompactionSettings } from "./auto-compact.js";
 import type { RuntimeConfig } from "./config.js";
+import { defaultI18n, type I18n } from "./i18n/index.js";
 import { createProvider } from "./provider.js";
 import { createResourceLoader } from "./resources.js";
 
@@ -32,10 +33,12 @@ export async function createRuntime(options: {
 	config: RuntimeConfig;
 	cwd: string;
 	home?: string;
+	i18n?: I18n;
 	sessionManager: SessionManager;
 }): Promise<SenkoRuntime> {
 	const agentDir = dirname(options.config.configPath);
 	const home = options.home ?? homedir();
+	const i18n = options.i18n ?? defaultI18n;
 	let startupDiagnostics: ResourceDiagnostic[] = [];
 	const createSessionRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd, sessionManager, sessionStartEvent }) => {
 		const settingsManager = SettingsManager.inMemory({
@@ -48,7 +51,7 @@ export async function createRuntime(options: {
 			images: { blockImages: true },
 			retry: { enabled: false, maxRetries: 0, provider: { maxRetries: 0 } },
 		});
-		const { model, modelRuntime } = await createProvider(options.config);
+		const { model, modelRuntime } = await createProvider(options.config, i18n);
 		const resources = await createResourceLoader({ agentDir, cwd, home, settingsManager });
 		const diagnostics = [...resources.diagnostics];
 		const services: AgentSessionServices = {

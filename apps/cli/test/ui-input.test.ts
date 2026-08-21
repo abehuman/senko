@@ -1,6 +1,7 @@
 import { CombinedAutocompleteProvider } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
-import { interruptAction, slashCommandAction, slashCommands } from "../src/ui/input.js";
+import { createI18n } from "../src/i18n/index.js";
+import { createSlashCommands, interruptAction, slashCommandAction, slashCommands } from "../src/ui/input.js";
 
 describe("interactive cancellation", () => {
 	it("aborts active work with Escape or Ctrl+C", () => {
@@ -42,6 +43,14 @@ describe("interactive slash commands", () => {
 			"plan",
 			"exit",
 			"quit",
+		]);
+	});
+
+	it("localizes descriptions without changing command names or priority", () => {
+		const commands = createSlashCommands(createI18n("ja"));
+		expect(commands.slice(0, 2)).toEqual([
+			{ name: "compact", description: "現在のセッションのコンテキストを圧縮" },
+			{ name: "clear", description: "新しいセッションを開始" },
 		]);
 	});
 

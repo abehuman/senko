@@ -7,15 +7,19 @@ Milestone 1 is a pnpm workspace containing only `apps/cli`. A future Cloudflare 
 
 ## Runtime flow
 
-1. Parse CLI flags and decide between help, version, session listing, print mode, and interactive mode.
-2. Resolve non-secret settings from flags, `SENKO_*` environment variables, and the XDG configuration file.
-3. Discover portable `AGENTS.md` and `.agents/skills` resources without loading vendor-specific directories.
-4. Register one in-memory `senko` model provider with Pi's `ModelRuntime`.
-5. Select an in-memory or XDG-backed Pi `SessionManager`.
-6. Create the Pi `AgentSession` with full-auto read, write, edit, and shell tools.
-7. Enable context compaction with one maximum-output response plus Pi's fixed 4,096-token request margin reserved,
+1. Resolve the interface locale from `--language`, `SENKO_LANGUAGE`, the XDG configuration file, or the terminal
+   locale, falling back to English. The best-effort bootstrap never prevents help output when configuration is invalid.
+2. Parse CLI flags with localized usage errors and decide between help, version, session listing, print mode, and
+   interactive mode.
+3. Resolve non-secret settings from flags, `SENKO_*` environment variables, and the XDG configuration file.
+4. Discover portable `AGENTS.md` and `.agents/skills` resources without loading vendor-specific directories.
+5. Register one in-memory `senko` model provider with Pi's `ModelRuntime`.
+6. Select an in-memory or XDG-backed Pi `SessionManager`.
+7. Create the Pi `AgentSession` with full-auto read, write, edit, and shell tools.
+8. Enable context compaction with one maximum-output response plus Pi's fixed 4,096-token request margin reserved,
    at most 20,000 recent tokens retained, and room left for the generated summary.
-8. Project Pi events into either stable stdout/stderr output or Senko's Pi-TUI-based interactive view.
+9. Project Pi events into either stable stdout/stderr output or Senko's Pi-TUI-based interactive view using the
+   selected locale for Senko-owned text while preserving model, provider, tool, and shell output verbatim.
 
 Pi credentials, model files, settings, branded entrypoints, extensions, prompt templates, and themes are not loaded.
 Senko owns those policy boundaries while Pi supplies the agent loop, OpenAI-compatible protocols, tools, sessions,

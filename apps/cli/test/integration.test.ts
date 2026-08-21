@@ -60,6 +60,39 @@ afterEach(async () => {
 });
 
 describe.sequential("CLI integration", () => {
+	it.each([
+		["en", "Usage:"],
+		["zh-CN", "用法："],
+		["zh-TW", "用法："],
+		["ja", "使い方:"],
+	])("renders --help in %s", async (locale, marker) => {
+		const root = await temporaryDirectory("senko-help-locale-");
+		const result = await runCli({
+			args: ["--language", locale, "--help"],
+			cwd: root,
+			env: { HOME: join(root, "home"), XDG_CONFIG_HOME: join(root, "config") },
+		});
+
+		expect(result).toMatchObject({ code: 0, stderr: "" });
+		expect(result.stdout).toContain(marker);
+		expect(result.stdout).toContain("--language <locale>");
+	});
+
+	it("localizes session listing without requiring inference configuration", async () => {
+		const root = await temporaryDirectory("senko-session-locale-");
+		const result = await runCli({
+			args: ["--language", "ja", "sessions"],
+			cwd: root,
+			env: {
+				HOME: join(root, "home"),
+				XDG_CONFIG_HOME: join(root, "config"),
+				XDG_STATE_HOME: join(root, "state"),
+			},
+		});
+
+		expect(result).toEqual({ code: 0, stderr: "", stdout: "このディレクトリにセッションはありません。\n" });
+	});
+
 	it.each<MockProtocol>(["openai-completions", "openai-responses"])(
 		"streams print output through %s",
 		async (protocol) => {

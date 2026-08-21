@@ -16,3 +16,6 @@ Long sessions automatically compact before a pending prompt would cross the conf
 maximum response and Pi's 4,096-token request safety margin reserved. Progress stays in the TUI or stderr, so
 print-mode assistant stdout remains script-friendly. In the interactive TUI, run `/compact` to compact on demand; the
 command does not accept additional instructions. `Escape` or `Ctrl+C` cancels active compaction.
+
+Senko's interface supports `en`, `zh-CN`, `zh-TW`, and `ja`. Select one with `--language`, `SENKO_LANGUAGE`, or the
+XDG configuration file's `language` field; otherwise Senko detects the terminal locale and falls back to English.

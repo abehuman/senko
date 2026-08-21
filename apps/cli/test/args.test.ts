@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCliArgs } from "../src/args.js";
+import { createI18n } from "../src/i18n/index.js";
 
 describe("parseCliArgs", () => {
 	it("parses a prompt and endpoint overrides", () => {
@@ -29,6 +30,21 @@ describe("parseCliArgs", () => {
 		expect(parseCliArgs(["sessions"]).command).toBe("sessions");
 		expect(parseCliArgs(["--continue"]).continueSession).toBe(true);
 		expect(parseCliArgs(["--resume", "abc123"]).resumeId).toBe("abc123");
+	});
+
+	it("parses supported language identifiers and aliases", () => {
+		expect(parseCliArgs(["--language", "ja"]).language).toBe("ja");
+		expect(parseCliArgs(["--language=zh-Hant"]).language).toBe("zh-TW");
+	});
+
+	it("localizes unsupported language errors", () => {
+		expect(() => parseCliArgs(["--language", "fr"], createI18n("ja"))).toThrow("未対応の言語");
+	});
+
+	it("localizes parser errors", () => {
+		const japanese = createI18n("ja");
+		expect(() => parseCliArgs(["--unknown"], japanese)).toThrow("不明なオプション");
+		expect(() => parseCliArgs(["--language"], japanese)).toThrow("値が必要です");
 	});
 
 	it.each([

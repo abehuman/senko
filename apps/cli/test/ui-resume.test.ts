@@ -1,5 +1,7 @@
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
+import { createI18n } from "../src/i18n/index.js";
 import { ResumePicker, resumableSessions, resumeSessionItems } from "../src/ui/resume.js";
 
 function session(overrides: Partial<SessionInfo>): SessionInfo {
@@ -31,21 +33,39 @@ describe("resume session picker", () => {
 	});
 
 	it("shows compact metadata for every saved session", () => {
-		const items = resumeSessionItems([
-			session({
-				firstMessage: "restore this work",
-				id: "1234567890abcdef",
-				messageCount: 7,
-				modified: new Date("2026-08-21T04:05:06.000Z"),
-			}),
-		]);
+		const i18n = createI18n("en");
+		const items = resumeSessionItems(
+			[
+				session({
+					firstMessage: "restore this work",
+					id: "1234567890abcdef",
+					messageCount: 7,
+					modified: new Date("2026-08-21T04:05:06.000Z"),
+				}),
+			],
+			i18n,
+		);
 
 		expect(items).toEqual([
 			expect.objectContaining({
-				description: expect.stringContaining("2026-08-21 04:05:06Z · 7 messages · restore this work"),
+				description: expect.stringContaining(
+					`${i18n.dateTime(new Date("2026-08-21T04:05:06.000Z"))} · 7 messages · restore this work`,
+				),
 				label: "1234567890ab",
 			}),
 		]);
+	});
+
+	it("renders localized CJK metadata within the terminal width", () => {
+		const picker = new ResumePicker(
+			[session({ firstMessage: "この作業を再開", id: "saved" })],
+			{ onCancel: () => undefined, onSelect: () => undefined },
+			createI18n("ja"),
+		);
+		const lines = picker.render(40);
+
+		expect(lines.join("\n")).toContain("セッションを再開");
+		expect(lines.every((line) => visibleWidth(line) <= 40)).toBe(true);
 	});
 
 	it("selects the highlighted session with Enter", () => {

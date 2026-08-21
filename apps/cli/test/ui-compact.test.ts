@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createI18n } from "../src/i18n/index.js";
 import { compactCommandMessage, compactCurrentSession } from "../src/ui/compact.js";
 
 describe("interactive compaction", () => {
@@ -31,5 +32,14 @@ describe("interactive compaction", () => {
 		expect(compactCommandMessage({ status: "success", tokensBefore: 12_000 })).toBe(
 			"Context compacted (12,000 tokens before).",
 		);
+	});
+
+	it("localizes compaction results", () => {
+		expect(
+			compactCommandMessage(
+				{ estimatedTokensAfter: 7_200, status: "success", tokensBefore: 24_100 },
+				createI18n("zh-CN"),
+			),
+		).toBe("已压缩上下文：24,100 → 约7,200个词元。");
 	});
 });

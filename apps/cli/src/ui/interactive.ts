@@ -11,8 +11,9 @@ import {
 import { type AutoCompactionDisplayEvent, promptWithAutoCompaction } from "../auto-compact.js";
 import type { RuntimeConfig } from "../config.js";
 import { contentToText, projectEvent } from "../events.js";
+import { defaultI18n, type I18n } from "../i18n/index.js";
 import { compactCommandMessage, compactCurrentSession } from "./compact.js";
-import { interruptAction, slashCommandAction, slashCommands } from "./input.js";
+import { createSlashCommands, interruptAction, slashCommandAction } from "./input.js";
 import { listResumableSessions, ResumePicker } from "./resume.js";
 import { cyan, dim, editorTheme, green, red } from "./theme.js";
 
@@ -25,16 +26,16 @@ function messageText(message: SessionMessage): string {
 	return contentToText(message.content);
 }
 
-function renderHistory(transcript: Container, messages: SessionMessage[]): void {
+function renderHistory(transcript: Container, messages: SessionMessage[], i18n: I18n): void {
 	for (const message of messages) {
 		const text = messageText(message);
 		if (!text) continue;
 		if (message.role === "user") {
-			transcript.addChild(new Text(`${cyan("you")}\n${text}`, 1, 0));
+			transcript.addChild(new Text(`${cyan(i18n.t("labelYou"))}\n${text}`, 1, 0));
 		} else if (message.role === "assistant") {
 			transcript.addChild(new Text(`${green("senko")}\n${text}`, 1, 0));
 		} else if (message.role === "toolResult") {
-			transcript.addChild(new Text(dim(`tool\n${text}`), 1, 0));
+			transcript.addChild(new Text(dim(`${i18n.t("labelTool")}\n${text}`), 1, 0));
 		}
 	}
 }
@@ -42,23 +43,25 @@ function renderHistory(transcript: Container, messages: SessionMessage[]): void 
 export async function runInteractiveMode(options: {
 	config: RuntimeConfig;
 	cwd: string;
+	i18n?: I18n;
 	initialPrompt?: string;
 	sessionRuntime: AgentSessionRuntime;
 }): Promise<number> {
+	const i18n = options.i18n ?? defaultI18n;
 	const terminal = new ProcessTerminal();
 	const tui = new TuiMainScreen(terminal);
 	const transcript = new Container();
-	const header = new Text(`${cyan("senko")} ${dim("fast coding agent")}`, 1, 0);
+	const header = new Text(`${cyan("senko")} ${dim(i18n.t("headerTagline"))}`, 1, 0);
 	const editor = new Editor(tui, editorTheme, { paddingX: 1 });
-	editor.setAutocompleteProvider(new CombinedAutocompleteProvider(slashCommands, options.cwd));
+	editor.setAutocompleteProvider(new CombinedAutocompleteProvider(createSlashCommands(i18n), options.cwd));
 	let activeSession = options.sessionRuntime.session;
 	const sessionLabel = () => activeSession.sessionId.slice(0, 12);
 	const idleFooter = () => `${options.config.model} · ${options.config.api} · ${options.cwd} · ${sessionLabel()}`;
-	const workingFooter = () => `working · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel()}`;
+	const workingFooter = () => i18n.t("footerWorking", { model: options.config.model, session: sessionLabel() });
 	const footer = new Text(dim(idleFooter()), 1, 0);
 	tui.addChild(header);
 	tui.addChild(transcript);
-	renderHistory(transcript, activeSession.messages);
+	renderHistory(transcript, activeSession.messages, i18n);
 	tui.addChild(editor);
 	tui.addChild(footer);
 	tui.setFocus(editor);
@@ -81,7 +84,7 @@ export async function runInteractiveMode(options: {
 			case "auto_compaction_start":
 				currentAutoCompaction = new Text(dim(projected.text), 1, 0);
 				transcript.addChild(currentAutoCompaction);
-				footer.setText(dim(`compacting · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel()}`));
+				footer.setText(dim(i18n.t("footerCompacting", { model: options.config.model, session: sessionLabel() })));
 				break;
 			case "auto_compaction_end": {
 				const component = currentAutoCompaction ?? new Text("", 1, 0);
@@ -104,7 +107,7 @@ export async function runInteractiveMode(options: {
 	const subscribeToSession = () => {
 		unsubscribeEvents?.();
 		unsubscribeEvents = activeSession.subscribe((event) => {
-			for (const projected of projectEvent(event)) {
+			for (const projected of projectEvent(event, i18n)) {
 				switch (projected.type) {
 					case "auto_compaction_start":
 					case "auto_compaction_end":
@@ -126,10 +129,10 @@ export async function runInteractiveMode(options: {
 					case "thinking_delta":
 						currentThinkingText += projected.text;
 						if (!currentThinking) {
-							currentThinking = new Text(dim("thinking…"), 1, 0);
+							currentThinking = new Text(dim(i18n.t("labelThinkingActive")), 1, 0);
 							transcript.addChild(currentThinking);
 						}
-						currentThinking.setText(dim(`thinking\n${currentThinkingText}`));
+						currentThinking.setText(dim(`${i18n.t("labelThinking")}\n${currentThinkingText}`));
 						break;
 					case "tool_start": {
 						const component = new Text(cyan(`→ ${projected.label}`), 1, 0);
@@ -152,7 +155,7 @@ export async function runInteractiveMode(options: {
 						break;
 					}
 					case "error":
-						transcript.addChild(new Text(red(`error\n${projected.text}`), 1, 0));
+						transcript.addChild(new Text(red(`${i18n.t("labelError")}\n${projected.text}`), 1, 0));
 						break;
 				}
 			}
@@ -170,7 +173,7 @@ export async function runInteractiveMode(options: {
 		currentThinkingText = "";
 		tools.clear();
 		transcript.clear();
-		renderHistory(transcript, activeSession.messages);
+		renderHistory(transcript, activeSession.messages, i18n);
 		subscribeToSession();
 		footer.setText(dim(idleFooter()));
 		tui.requestRender();
@@ -208,14 +211,14 @@ export async function runInteractiveMode(options: {
 			if (commandAction === "compact-usage") {
 				editor.addToHistory(raw);
 				editor.setText("");
-				transcript.addChild(new Text(red("Usage: /compact"), 1, 0));
+				transcript.addChild(new Text(red(i18n.t("commandUsage", { command: "/compact" })), 1, 0));
 				tui.requestRender();
 				return;
 			}
 			if (commandAction === "new-session-usage") {
 				editor.addToHistory(raw);
 				editor.setText("");
-				transcript.addChild(new Text(red("Usage: /clear"), 1, 0));
+				transcript.addChild(new Text(red(i18n.t("commandUsage", { command: "/clear" })), 1, 0));
 				tui.requestRender();
 				return;
 			}
@@ -233,7 +236,7 @@ export async function runInteractiveMode(options: {
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
 					terminal.clearScreen();
-					terminal.write(`${red(`senko: could not start a new session: ${message}`)}\n`);
+					terminal.write(`${red(i18n.t("newSessionFailed", { message }))}\n`);
 					finish(1);
 					return;
 				} finally {
@@ -249,7 +252,7 @@ export async function runInteractiveMode(options: {
 			if (commandAction === "resume-usage") {
 				editor.addToHistory(raw);
 				editor.setText("");
-				transcript.addChild(new Text(red("Usage: /resume"), 1, 0));
+				transcript.addChild(new Text(red(i18n.t("commandUsage", { command: "/resume" })), 1, 0));
 				tui.requestRender();
 				return;
 			}
@@ -257,7 +260,7 @@ export async function runInteractiveMode(options: {
 				editor.addToHistory(raw);
 				editor.setText("");
 				if (!activeSession.sessionManager.isPersisted()) {
-					transcript.addChild(new Text(red("Saved-session resume is disabled with --no-session."), 1, 0));
+					transcript.addChild(new Text(red(i18n.t("resumeDisabledNoSession")), 1, 0));
 					tui.requestRender();
 					return;
 				}
@@ -270,7 +273,7 @@ export async function runInteractiveMode(options: {
 						sessionsDir: activeSession.sessionManager.getSessionDir(),
 					});
 					if (sessions.length === 0) {
-						transcript.addChild(new Text(dim("No saved sessions for this directory."), 1, 0));
+						transcript.addChild(new Text(dim(i18n.t("noSavedSessions")), 1, 0));
 						tui.requestRender();
 						return;
 					}
@@ -291,7 +294,7 @@ export async function runInteractiveMode(options: {
 						} catch (error) {
 							const message = error instanceof Error ? error.message : String(error);
 							terminal.clearScreen();
-							terminal.write(`${red(`senko: could not resume the selected session: ${message}`)}\n`);
+							terminal.write(`${red(i18n.t("resumeSelectedFailed", { message }))}\n`);
 							finish(1);
 							return;
 						} finally {
@@ -304,15 +307,19 @@ export async function runInteractiveMode(options: {
 						}
 					};
 					resumeOverlay = tui.showOverlay(
-						new ResumePicker(sessions, {
-							onCancel: closePicker,
-							onSelect: (session) => void resumeSession(session.path),
-						}),
+						new ResumePicker(
+							sessions,
+							{
+								onCancel: closePicker,
+								onSelect: (session) => void resumeSession(session.path),
+							},
+							i18n,
+						),
 						{ anchor: "center", maxHeight: "70%", width: "90%" },
 					);
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
-					transcript.addChild(new Text(red(`Could not list saved sessions: ${message}`), 1, 0));
+					transcript.addChild(new Text(red(i18n.t("listSessionsFailed", { message })), 1, 0));
 					tui.requestRender();
 				} finally {
 					resumeLoading = false;
@@ -323,14 +330,14 @@ export async function runInteractiveMode(options: {
 			if (commandAction === "compact") {
 				editor.addToHistory(raw);
 				editor.setText("");
-				const status = new Text(dim("Compacting context…"), 1, 0);
+				const status = new Text(dim(i18n.t("compactingContext")), 1, 0);
 				transcript.addChild(status);
 				busy = true;
 				editor.disableSubmit = true;
-				footer.setText(dim(`compacting · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel()}`));
+				footer.setText(dim(i18n.t("footerCompacting", { model: options.config.model, session: sessionLabel() })));
 				tui.requestRender();
 				const result = await compactCurrentSession(activeSession);
-				const message = compactCommandMessage(result);
+				const message = compactCommandMessage(result, i18n);
 				status.setText(
 					result.status === "success"
 						? green(`✓ ${message}`)
@@ -347,13 +354,13 @@ export async function runInteractiveMode(options: {
 			if (commandAction === "not-built") {
 				editor.addToHistory(raw);
 				editor.setText("");
-				transcript.addChild(new Text(`${green("senko")}\nThis feature is not built yet.`, 1, 0));
+				transcript.addChild(new Text(`${green("senko")}\n${i18n.t("featureNotBuilt")}`, 1, 0));
 				tui.requestRender();
 				return;
 			}
 			editor.addToHistory(raw);
 			editor.setText("");
-			transcript.addChild(new Text(`${cyan("you")}\n${raw}`, 1, 0));
+			transcript.addChild(new Text(`${cyan(i18n.t("labelYou"))}\n${raw}`, 1, 0));
 			busy = true;
 			activePromptCancelled = false;
 			editor.disableSubmit = true;
@@ -362,6 +369,7 @@ export async function runInteractiveMode(options: {
 			try {
 				await promptWithAutoCompaction({
 					config: options.config,
+					i18n,
 					isCancelled: () => activePromptCancelled,
 					onDisplayEvent: displayAutoCompaction,
 					prompt: raw,
@@ -369,7 +377,7 @@ export async function runInteractiveMode(options: {
 				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				transcript.addChild(new Text(red(`error\n${message}`), 1, 0));
+				transcript.addChild(new Text(red(`${i18n.t("labelError")}\n${message}`), 1, 0));
 			} finally {
 				busy = false;
 				editor.disableSubmit = false;

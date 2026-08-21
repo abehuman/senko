@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { normalizeBaseUrl, parseConfigFile, resolveConfig } from "../src/config.js";
+import { createI18n } from "../src/i18n/index.js";
 import { getConfigPath, getSessionsDir } from "../src/paths.js";
 
 const temporaryDirectories: string[] = [];
@@ -28,6 +29,7 @@ describe("resolveConfig", () => {
 				api: "openai-completions",
 				baseUrl: "https://file.example/v1",
 				contextWindow: 65_536,
+				language: "ja",
 				maxOutputTokens: 8_192,
 				model: "file-model",
 				reasoning: true,
@@ -38,6 +40,7 @@ describe("resolveConfig", () => {
 			args: {
 				api: "openai-responses",
 				baseUrl: "https://flag.example/v1/",
+				language: "zh-CN",
 				model: "flag-model",
 			},
 			configPath,
@@ -45,6 +48,7 @@ describe("resolveConfig", () => {
 				SENKO_API: "openai-completions",
 				SENKO_API_KEY: "test-secret",
 				SENKO_BASE_URL: "https://env.example/v1",
+				SENKO_LANGUAGE: "zh-TW",
 				SENKO_MODEL: "env-model",
 			},
 		});
@@ -54,10 +58,21 @@ describe("resolveConfig", () => {
 			apiKey: "test-secret",
 			baseUrl: "https://flag.example/v1",
 			contextWindow: 65_536,
+			language: "zh-CN",
 			maxOutputTokens: 8_192,
 			model: "flag-model",
 			reasoning: true,
 		});
+	});
+
+	it("validates configured languages with localized errors", async () => {
+		const directory = await temporaryDirectory();
+		const configPath = join(directory, "config.json");
+		await writeFile(configPath, JSON.stringify({ baseUrl: "http://localhost:9000/v1", language: "fr" }));
+
+		await expect(resolveConfig({ args: {}, configPath, env: {}, i18n: createI18n("ja") })).rejects.toThrow(
+			"未対応の言語",
+		);
 	});
 
 	it("allows unauthenticated loopback and applies conservative defaults", async () => {

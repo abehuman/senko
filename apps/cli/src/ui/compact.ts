@@ -1,4 +1,5 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import { defaultI18n, type I18n } from "../i18n/index.js";
 
 type CompactableSession = Pick<AgentSession, "compact">;
 
@@ -33,19 +34,15 @@ export async function compactCurrentSession(session: CompactableSession): Promis
 	}
 }
 
-function tokenCount(value: number): string {
-	return value.toLocaleString("en-US");
-}
-
-export function compactCommandMessage(result: CompactCommandResult): string {
+export function compactCommandMessage(result: CompactCommandResult, i18n: I18n = defaultI18n): string {
 	switch (result.status) {
 		case "success":
 			return result.estimatedTokensAfter === undefined
-				? `Context compacted (${tokenCount(result.tokensBefore)} tokens before).`
-				: `Context compacted: ${tokenCount(result.tokensBefore)} → ~${tokenCount(result.estimatedTokensAfter)} tokens.`;
+				? i18n.t("compactedBefore", { before: result.tokensBefore })
+				: i18n.t("compactedAfter", { after: result.estimatedTokensAfter, before: result.tokensBefore });
 		case "cancelled":
-			return "Compaction cancelled.";
+			return i18n.t("compactionCancelled");
 		case "error":
-			return `Compaction failed: ${result.message}`;
+			return i18n.t("compactionFailed", { message: result.message });
 	}
 }

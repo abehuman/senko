@@ -44,6 +44,7 @@ senko --print <prompt>
 senko --continue
 senko --resume <session-id>
 senko sessions
+senko --language ja
 senko --help
 senko --version
 ```
@@ -69,11 +70,18 @@ currently display `This feature is not built yet.` without contacting the model.
 Senko resolves settings from CLI flags, then `SENKO_*` environment variables, then the XDG configuration file.
 There is no compiled production endpoint yet.
 
+The interface supports English (`en`), Simplified Chinese (`zh-CN`), Traditional Chinese (`zh-TW`), and Japanese
+(`ja`). Set it with `--language`, `SENKO_LANGUAGE`, or the `language` configuration field. When none is set, Senko
+detects `LC_ALL`, `LC_MESSAGES`, or `LANG` and falls back to English. Locale aliases such as `ja_JP.UTF-8`, `zh_CN`,
+`zh_Hans`, and `zh_Hant` are accepted. Commands, option names, environment variables, and raw tool output remain
+unchanged across languages.
+
 ```sh
 export SENKO_BASE_URL=https://example.com/v1
 export SENKO_API_KEY=your-key
 export SENKO_MODEL=fast
 export SENKO_API=openai-completions
+export SENKO_LANGUAGE=ja
 
 pnpm dev -- --print "Summarize this repository"
 ```
@@ -83,6 +91,7 @@ The non-secret configuration file is `$XDG_CONFIG_HOME/senko/config.json`, or
 
 ```json
 {
+  "language": "ja",
   "baseUrl": "https://example.com/v1",
   "api": "openai-completions",
   "model": "fast",

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
+import { createI18n } from "../src/i18n/index.js";
 import { formatSessions, listSessions, selectSessionManager } from "../src/sessions.js";
 
 const temporaryDirectories: string[] = [];
@@ -85,5 +86,6 @@ describe("session selection", () => {
 		expect(formatSessions([])).toBe("No sessions for this directory.");
 		expect(formatSessions([session])).toContain("session-123");
 		expect(formatSessions([session])).toContain("first prompt");
+		expect(formatSessions([], createI18n("ja"))).toBe("このディレクトリにセッションはありません。");
 	});
 });
