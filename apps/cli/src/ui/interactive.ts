@@ -2,6 +2,7 @@ import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { Container, Editor, ProcessTerminal, Text, TuiMainScreen } from "@earendil-works/pi-tui";
 import type { RuntimeConfig } from "../config.js";
 import { contentToText, projectEvent } from "../events.js";
+import { compactCommandMessage, compactCurrentSession } from "./compact.js";
 import { interruptAction, slashCommandAction } from "./input.js";
 import { cyan, dim, editorTheme, green, red } from "./theme.js";
 
@@ -130,6 +131,37 @@ export async function runInteractiveMode(options: {
 				finish(0);
 				return;
 			}
+			if (commandAction === "compact-usage") {
+				editor.addToHistory(raw);
+				editor.setText("");
+				transcript.addChild(new Text(red("Usage: /compact"), 1, 0));
+				tui.requestRender();
+				return;
+			}
+			if (commandAction === "compact") {
+				editor.addToHistory(raw);
+				editor.setText("");
+				const status = new Text(dim("Compacting context…"), 1, 0);
+				transcript.addChild(status);
+				busy = true;
+				editor.disableSubmit = true;
+				footer.setText(dim(`compacting · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel}`));
+				tui.requestRender();
+				const result = await compactCurrentSession(options.session);
+				const message = compactCommandMessage(result);
+				status.setText(
+					result.status === "success"
+						? green(`✓ ${message}`)
+						: result.status === "cancelled"
+							? dim(message)
+							: red(message),
+				);
+				busy = false;
+				editor.disableSubmit = false;
+				footer.setText(dim(`${options.config.model} · ${options.config.api} · ${options.cwd} · ${sessionLabel}`));
+				tui.requestRender();
+				return;
+			}
 			if (commandAction === "not-built") {
 				editor.addToHistory(raw);
 				editor.setText("");
@@ -161,7 +193,11 @@ export async function runInteractiveMode(options: {
 		const unsubscribeInput = tui.addInputListener((data) => {
 			const action = interruptAction(data, busy);
 			if (action === "abort") {
-				void options.session.abort();
+				if (options.session.isCompacting) {
+					options.session.abortCompaction();
+				} else {
+					void options.session.abort();
+				}
 				return { consume: true };
 			}
 			if (action === "exit") {

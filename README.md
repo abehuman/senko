@@ -52,8 +52,9 @@ A non-TTY stdin stream automatically selects print mode. New sessions persist by
 ephemeral run. `--continue` selects the newest session for the current working directory, while `--resume` accepts an
 exact session ID or a unique prefix.
 
-Inside the interactive TUI, `/exit` ends Senko and `/quit` is its alias. The planned `/model`, `/compact`, `/new`,
-`/clear`, `/plan`, and `/resume` commands are recognized as placeholders and currently display
+Inside the interactive TUI, `/compact` summarizes the current session context using the active model and does not
+accept additional instructions. `/exit` ends Senko and `/quit` is its alias. The planned `/model`, `/new`, `/clear`,
+`/plan`, and `/resume` commands are recognized as placeholders and currently display
 `This feature is not built yet.` without contacting the model.
 
 ## Configuration

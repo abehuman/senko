@@ -11,3 +11,6 @@ senko
 
 Senko runs coding tools automatically without a sandbox or approval prompt. See the repository README for the full
 configuration, resource, and session documentation.
+
+In the interactive TUI, run `/compact` to summarize a long session into a smaller context. The command does not
+accept additional instructions.

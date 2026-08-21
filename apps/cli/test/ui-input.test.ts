@@ -26,11 +26,14 @@ describe("interactive slash commands", () => {
 		expect(slashCommandAction("/help")).toBeUndefined();
 	});
 
-	it.each(["/model", "/compact", "/new", "/clear", "/plan", "/resume"])(
-		"returns the not-built placeholder for %s",
-		(command) => {
-			expect(slashCommandAction(command)).toBe("not-built");
-			expect(slashCommandAction(`${command} example argument`)).toBe("not-built");
-		},
-	);
+	it("runs /compact without accepting custom instructions", () => {
+		expect(slashCommandAction("/compact")).toBe("compact");
+		expect(slashCommandAction("  /compact  ")).toBe("compact");
+		expect(slashCommandAction("/compact focus on tools")).toBe("compact-usage");
+	});
+
+	it.each(["/model", "/new", "/clear", "/plan", "/resume"])("returns the not-built placeholder for %s", (command) => {
+		expect(slashCommandAction(command)).toBe("not-built");
+		expect(slashCommandAction(`${command} example argument`)).toBe("not-built");
+	});
 });

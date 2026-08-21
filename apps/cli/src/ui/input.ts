@@ -1,13 +1,11 @@
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 
 export type InterruptAction = "abort" | "exit" | undefined;
-export type SlashCommandAction = "exit" | "not-built" | undefined;
+export type SlashCommandAction = "compact" | "compact-usage" | "exit" | "not-built" | undefined;
 
 const placeholderSlashCommands = new Set([
 	// Changes the active model and effort, but is not built yet.
 	"/model",
-	// Compacts the current session context with AI, but is not built yet.
-	"/compact",
 	// Starts a new session by calling /clear, but is not built yet.
 	"/new",
 	// Clears the UI and starts a new chat session, but is not built yet.
@@ -33,7 +31,13 @@ export function slashCommandAction(input: string): SlashCommandAction {
 	if (normalized === "/exit" || normalized === "/quit") {
 		return "exit";
 	}
+	if (normalized === "/compact") {
+		return "compact";
+	}
 	const [command] = normalized.split(/\s+/, 1);
+	if (command === "/compact") {
+		return "compact-usage";
+	}
 	if (command && placeholderSlashCommands.has(command)) {
 		return "not-built";
 	}
