@@ -28,8 +28,8 @@ Research each command before implementing it. Detailed findings belong under `do
 | --- | --- |
 | `/model` | Not started |
 | `/compact` | [`docs/research/compact`](research/compact/) |
-| `/clear` | Not started |
-| `/new` | Not started |
+| `/clear` | [`docs/research/clear`](research/clear/README.md) |
+| `/new` | Covered by [`docs/research/clear`](research/clear/README.md); exact alias |
 | `/plan` | [`docs/research/plan`](research/plan/README.md) |
 | `/resume` | [`docs/research/resume`](research/resume/README.md) |
 | `/exit` | Not needed; implemented |
