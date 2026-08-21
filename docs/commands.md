@@ -1,0 +1,36 @@
+# Commands run with slash
+
+- `/model` ... change model and effort
+- `/compact` ... compact context current session using AI
+- `/clear` ... clear the current entire session from ui and start a new chat session
+- `/new` ... call `/clear`
+- `/plan` ... switch between edit mode and read-only plan mode
+- `/resume` … resume past sessions
+- `/exit` ... end cli app
+- `/quit`... call `/exit`
+
+## Implementation status to release
+
+- [ ] `/model`
+- [x] `/compact`
+- [ ] `/clear`
+- [ ] `/new`
+- [ ] `/plan`
+- [ ] `/resume`
+- [x] `/exit`
+- [x] `/quit`
+
+## Research before implementation
+
+Research each command before implementing it. Detailed findings belong under `docs/research/<command>/`. Codex, Pi, OpenCode are target repo to research.
+
+| Command | Research |
+| --- | --- |
+| `/model` | Not started |
+| `/compact` | [`docs/research/compact`](research/compact/) |
+| `/clear` | Not started |
+| `/new` | Not started |
+| `/plan` | [`docs/research/plan`](research/plan/README.md) |
+| `/resume` | Not started |
+| `/exit` | Not needed; implemented |
+| `/quit` | Not needed; implemented alias |
