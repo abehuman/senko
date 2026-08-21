@@ -2,7 +2,7 @@ import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { Container, Editor, ProcessTerminal, Text, TuiMainScreen } from "@earendil-works/pi-tui";
 import type { RuntimeConfig } from "../config.js";
 import { contentToText, projectEvent } from "../events.js";
-import { interruptAction } from "./input.js";
+import { interruptAction, slashCommandAction } from "./input.js";
 import { cyan, dim, editorTheme, green, red } from "./theme.js";
 
 type SessionMessage = AgentSession["messages"][number];
@@ -125,6 +125,18 @@ export async function runInteractiveMode(options: {
 		const submit = async (raw: string) => {
 			const prompt = raw.trim();
 			if (!prompt || busy || closed) return;
+			const commandAction = slashCommandAction(prompt);
+			if (commandAction === "exit") {
+				finish(0);
+				return;
+			}
+			if (commandAction === "not-built") {
+				editor.addToHistory(raw);
+				editor.setText("");
+				transcript.addChild(new Text(`${green("senko")}\nThis feature is not built yet.`, 1, 0));
+				tui.requestRender();
+				return;
+			}
 			editor.addToHistory(raw);
 			editor.setText("");
 			transcript.addChild(new Text(`${cyan("you")}\n${raw}`, 1, 0));

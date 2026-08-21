@@ -52,6 +52,10 @@ A non-TTY stdin stream automatically selects print mode. New sessions persist by
 ephemeral run. `--continue` selects the newest session for the current working directory, while `--resume` accepts an
 exact session ID or a unique prefix.
 
+Inside the interactive TUI, `/exit` ends Senko and `/quit` is its alias. The planned `/model`, `/compact`, `/new`,
+`/clear`, `/plan`, and `/resume` commands are recognized as placeholders and currently display
+`This feature is not built yet.` without contacting the model.
+
 ## Configuration
 
 Senko resolves settings from CLI flags, then `SENKO_*` environment variables, then the XDG configuration file.
