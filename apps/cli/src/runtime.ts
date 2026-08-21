@@ -1,8 +1,12 @@
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import {
-	type AgentSession,
-	createAgentSession,
+	type AgentSessionRuntime,
+	type AgentSessionRuntimeDiagnostic,
+	type AgentSessionServices,
+	type CreateAgentSessionRuntimeFactory,
+	createAgentSessionFromServices,
+	createAgentSessionRuntime,
 	type ResourceDiagnostic,
 	type SessionManager,
 	SettingsManager,
@@ -14,7 +18,14 @@ import { createResourceLoader } from "./resources.js";
 
 export interface SenkoRuntime {
 	diagnostics: ResourceDiagnostic[];
-	session: AgentSession;
+	sessionRuntime: AgentSessionRuntime;
+}
+
+function runtimeDiagnostics(diagnostics: ResourceDiagnostic[]): AgentSessionRuntimeDiagnostic[] {
+	return diagnostics.map((diagnostic) => ({
+		message: diagnostic.message,
+		type: diagnostic.type === "collision" ? "warning" : diagnostic.type,
+	}));
 }
 
 export async function createRuntime(options: {
@@ -23,37 +34,49 @@ export async function createRuntime(options: {
 	home?: string;
 	sessionManager: SessionManager;
 }): Promise<SenkoRuntime> {
-	const settingsManager = SettingsManager.inMemory({
-		compaction: createAutoCompactionSettings(options.config),
-		defaultProjectTrust: "always",
-		defaultTools: ["read", "write", "edit", "bash"],
-		enableAnalytics: false,
-		enableInstallTelemetry: false,
-		httpIdleTimeoutMs: 0,
-		images: { blockImages: true },
-		retry: { enabled: false, maxRetries: 0, provider: { maxRetries: 0 } },
-	});
-	const { model, modelRuntime } = await createProvider(options.config);
-	const resources = await createResourceLoader({
-		agentDir: dirname(options.config.configPath),
+	const agentDir = dirname(options.config.configPath);
+	const home = options.home ?? homedir();
+	let startupDiagnostics: ResourceDiagnostic[] = [];
+	const createSessionRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd, sessionManager, sessionStartEvent }) => {
+		const settingsManager = SettingsManager.inMemory({
+			compaction: createAutoCompactionSettings(options.config),
+			defaultProjectTrust: "always",
+			defaultTools: ["read", "write", "edit", "bash"],
+			enableAnalytics: false,
+			enableInstallTelemetry: false,
+			httpIdleTimeoutMs: 0,
+			images: { blockImages: true },
+			retry: { enabled: false, maxRetries: 0, provider: { maxRetries: 0 } },
+		});
+		const { model, modelRuntime } = await createProvider(options.config);
+		const resources = await createResourceLoader({ agentDir, cwd, home, settingsManager });
+		const diagnostics = [...resources.diagnostics];
+		const services: AgentSessionServices = {
+			agentDir,
+			cwd,
+			diagnostics: runtimeDiagnostics(diagnostics),
+			modelRuntime,
+			resourceLoader: resources.loader,
+			settingsManager,
+		};
+		const session = await createAgentSessionFromServices({
+			model,
+			sessionManager,
+			sessionStartEvent,
+			services,
+			thinkingLevel: options.config.reasoning ? "medium" : "off",
+			tools: ["read", "write", "edit", "bash"],
+		});
+		if (session.modelFallbackMessage) {
+			diagnostics.push({ type: "warning", message: session.modelFallbackMessage });
+		}
+		startupDiagnostics = diagnostics;
+		return { ...session, diagnostics: runtimeDiagnostics(diagnostics), services };
+	};
+	const sessionRuntime = await createAgentSessionRuntime(createSessionRuntime, {
+		agentDir,
 		cwd: options.cwd,
-		home: options.home ?? homedir(),
-		settingsManager,
-	});
-	const { session, modelFallbackMessage } = await createAgentSession({
-		agentDir: dirname(options.config.configPath),
-		cwd: options.cwd,
-		model,
-		modelRuntime,
-		resourceLoader: resources.loader,
 		sessionManager: options.sessionManager,
-		settingsManager,
-		thinkingLevel: options.config.reasoning ? "medium" : "off",
-		tools: ["read", "write", "edit", "bash"],
 	});
-	const diagnostics = [...resources.diagnostics];
-	if (modelFallbackMessage) {
-		diagnostics.push({ type: "warning", message: modelFallbackMessage });
-	}
-	return { diagnostics, session };
+	return { diagnostics: startupDiagnostics, sessionRuntime };
 }

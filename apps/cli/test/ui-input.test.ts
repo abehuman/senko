@@ -32,7 +32,17 @@ describe("interactive slash commands", () => {
 		expect(slashCommandAction("/compact focus on tools")).toBe("compact-usage");
 	});
 
-	it.each(["/model", "/new", "/clear", "/plan", "/resume"])("returns the not-built placeholder for %s", (command) => {
+	it("starts a new session for /clear and its /new alias", () => {
+		expect(slashCommandAction("/clear")).toBe("new-session");
+		expect(slashCommandAction("  /new  ")).toBe("new-session");
+	});
+
+	it("does not accept arguments for /clear or /new", () => {
+		expect(slashCommandAction("/clear release prep")).toBe("new-session-usage");
+		expect(slashCommandAction("/new release prep")).toBe("new-session-usage");
+	});
+
+	it.each(["/model", "/plan", "/resume"])("returns the not-built placeholder for %s", (command) => {
 		expect(slashCommandAction(command)).toBe("not-built");
 		expect(slashCommandAction(`${command} example argument`)).toBe("not-built");
 	});

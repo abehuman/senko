@@ -1,15 +1,18 @@
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 
 export type InterruptAction = "abort" | "exit" | undefined;
-export type SlashCommandAction = "compact" | "compact-usage" | "exit" | "not-built" | undefined;
+export type SlashCommandAction =
+	| "compact"
+	| "compact-usage"
+	| "exit"
+	| "new-session"
+	| "new-session-usage"
+	| "not-built"
+	| undefined;
 
 const placeholderSlashCommands = new Set([
 	// Changes the active model and effort, but is not built yet.
 	"/model",
-	// Starts a new session by calling /clear, but is not built yet.
-	"/new",
-	// Clears the UI and starts a new chat session, but is not built yet.
-	"/clear",
 	// Enables plan mode; edit mode remains the default, but this is not built yet.
 	"/plan",
 	// Opens a previous session, but is not built yet.
@@ -37,6 +40,9 @@ export function slashCommandAction(input: string): SlashCommandAction {
 	const [command] = normalized.split(/\s+/, 1);
 	if (command === "/compact") {
 		return "compact-usage";
+	}
+	if (command === "/clear" || command === "/new") {
+		return normalized === command ? "new-session" : "new-session-usage";
 	}
 	if (command && placeholderSlashCommands.has(command)) {
 		return "not-built";

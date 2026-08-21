@@ -51,11 +51,11 @@ export async function runApp(options: {
 			if (!prompt) {
 				throw new SenkoError("Print mode requires a prompt or non-empty piped stdin.", 2);
 			}
-			return await runPrintMode(runtime.session, prompt, config);
+			return await runPrintMode(runtime.sessionRuntime.session, prompt, config);
 		}
 		const { runInteractiveMode } = await import("./ui/interactive.js");
-		return await runInteractiveMode({ config, cwd, initialPrompt: prompt, session: runtime.session });
+		return await runInteractiveMode({ config, cwd, initialPrompt: prompt, sessionRuntime: runtime.sessionRuntime });
 	} finally {
-		runtime.session.dispose();
+		await runtime.sessionRuntime.dispose();
 	}
 }

@@ -13,8 +13,8 @@
 
 - [ ] `/model`
 - [x] `/compact`
-- [ ] `/clear`
-- [ ] `/new`
+- [x] `/clear`
+- [x] `/new`
 - [ ] `/plan`
 - [ ] `/resume`
 - [x] `/exit`

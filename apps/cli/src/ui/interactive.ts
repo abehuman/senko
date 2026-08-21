@@ -1,4 +1,4 @@
-import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { Container, Editor, ProcessTerminal, Text, TuiMainScreen } from "@earendil-works/pi-tui";
 import { type AutoCompactionDisplayEvent, promptWithAutoCompaction } from "../auto-compact.js";
 import type { RuntimeConfig } from "../config.js";
@@ -34,20 +34,21 @@ export async function runInteractiveMode(options: {
 	config: RuntimeConfig;
 	cwd: string;
 	initialPrompt?: string;
-	session: AgentSession;
+	sessionRuntime: AgentSessionRuntime;
 }): Promise<number> {
 	const terminal = new ProcessTerminal();
 	const tui = new TuiMainScreen(terminal);
 	const transcript = new Container();
 	const header = new Text(`${cyan("senko")} ${dim("fast coding agent")}`, 1, 0);
 	const editor = new Editor(tui, editorTheme, { paddingX: 1 });
-	const sessionLabel = options.session.sessionId.slice(0, 12);
-	const idleFooter = `${options.config.model} · ${options.config.api} · ${options.cwd} · ${sessionLabel}`;
-	const workingFooter = `working · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel}`;
-	const footer = new Text(dim(idleFooter), 1, 0);
+	let activeSession = options.sessionRuntime.session;
+	const sessionLabel = () => activeSession.sessionId.slice(0, 12);
+	const idleFooter = () => `${options.config.model} · ${options.config.api} · ${options.cwd} · ${sessionLabel()}`;
+	const workingFooter = () => `working · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel()}`;
+	const footer = new Text(dim(idleFooter()), 1, 0);
 	tui.addChild(header);
 	tui.addChild(transcript);
-	renderHistory(transcript, options.session.messages);
+	renderHistory(transcript, activeSession.messages);
 	tui.addChild(editor);
 	tui.addChild(footer);
 	tui.setFocus(editor);
@@ -61,12 +62,13 @@ export async function runInteractiveMode(options: {
 	let currentThinking: Text | undefined;
 	let currentThinkingText = "";
 	const tools = new Map<string, { component: Text; label: string }>();
+	let unsubscribeEvents: (() => void) | undefined;
 	const displayAutoCompaction = (projected: AutoCompactionDisplayEvent) => {
 		switch (projected.type) {
 			case "auto_compaction_start":
 				currentAutoCompaction = new Text(dim(projected.text), 1, 0);
 				transcript.addChild(currentAutoCompaction);
-				footer.setText(dim(`compacting · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel}`));
+				footer.setText(dim(`compacting · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel()}`));
 				break;
 			case "auto_compaction_end": {
 				const component = currentAutoCompaction ?? new Text("", 1, 0);
@@ -79,75 +81,103 @@ export async function runInteractiveMode(options: {
 							: red(projected.text),
 				);
 				currentAutoCompaction = undefined;
-				footer.setText(dim(busy ? workingFooter : idleFooter));
+				footer.setText(dim(busy ? workingFooter() : idleFooter()));
 				break;
 			}
 		}
 		tui.requestRender();
 	};
 
-	const unsubscribeEvents = options.session.subscribe((event) => {
-		for (const projected of projectEvent(event)) {
-			switch (projected.type) {
-				case "auto_compaction_start":
-				case "auto_compaction_end":
-					displayAutoCompaction(projected);
-					break;
-				case "assistant_start":
-					currentAssistantText = "";
-					currentThinkingText = "";
-					currentThinking = undefined;
-					currentAssistant = new Text(`${green("senko")}\n`, 1, 0);
-					transcript.addChild(currentAssistant);
-					break;
-				case "text_delta":
-					currentAssistantText += projected.text;
-					currentAssistant ??= new Text(`${green("senko")}\n`, 1, 0);
-					if (!transcript.children.includes(currentAssistant)) transcript.addChild(currentAssistant);
-					currentAssistant.setText(`${green("senko")}\n${currentAssistantText}`);
-					break;
-				case "thinking_delta":
-					currentThinkingText += projected.text;
-					if (!currentThinking) {
-						currentThinking = new Text(dim("thinking…"), 1, 0);
-						transcript.addChild(currentThinking);
+	const subscribeToSession = () => {
+		unsubscribeEvents?.();
+		unsubscribeEvents = activeSession.subscribe((event) => {
+			for (const projected of projectEvent(event)) {
+				switch (projected.type) {
+					case "auto_compaction_start":
+					case "auto_compaction_end":
+						displayAutoCompaction(projected);
+						break;
+					case "assistant_start":
+						currentAssistantText = "";
+						currentThinkingText = "";
+						currentThinking = undefined;
+						currentAssistant = new Text(`${green("senko")}\n`, 1, 0);
+						transcript.addChild(currentAssistant);
+						break;
+					case "text_delta":
+						currentAssistantText += projected.text;
+						currentAssistant ??= new Text(`${green("senko")}\n`, 1, 0);
+						if (!transcript.children.includes(currentAssistant)) transcript.addChild(currentAssistant);
+						currentAssistant.setText(`${green("senko")}\n${currentAssistantText}`);
+						break;
+					case "thinking_delta":
+						currentThinkingText += projected.text;
+						if (!currentThinking) {
+							currentThinking = new Text(dim("thinking…"), 1, 0);
+							transcript.addChild(currentThinking);
+						}
+						currentThinking.setText(dim(`thinking\n${currentThinkingText}`));
+						break;
+					case "tool_start": {
+						const component = new Text(cyan(`→ ${projected.label}`), 1, 0);
+						tools.set(projected.id, { component, label: projected.label });
+						transcript.addChild(component);
+						break;
 					}
-					currentThinking.setText(dim(`thinking\n${currentThinkingText}`));
-					break;
-				case "tool_start": {
-					const component = new Text(cyan(`→ ${projected.label}`), 1, 0);
-					tools.set(projected.id, { component, label: projected.label });
-					transcript.addChild(component);
-					break;
-				}
-				case "tool_update": {
-					const tool = tools.get(projected.id);
-					if (tool && projected.text) tool.component.setText(`${cyan(`→ ${tool.label}`)}\n${dim(projected.text)}`);
-					break;
-				}
-				case "tool_end": {
-					const tool = tools.get(projected.id);
-					if (tool) {
-						const status = projected.isError ? red("✗") : green("✓");
-						const detail = projected.text ? `\n${dim(projected.text)}` : "";
-						tool.component.setText(`${status} ${tool.label}${detail}`);
+					case "tool_update": {
+						const tool = tools.get(projected.id);
+						if (tool && projected.text) tool.component.setText(`${cyan(`→ ${tool.label}`)}\n${dim(projected.text)}`);
+						break;
 					}
-					break;
+					case "tool_end": {
+						const tool = tools.get(projected.id);
+						if (tool) {
+							const status = projected.isError ? red("✗") : green("✓");
+							const detail = projected.text ? `\n${dim(projected.text)}` : "";
+							tool.component.setText(`${status} ${tool.label}${detail}`);
+						}
+						break;
+					}
+					case "error":
+						transcript.addChild(new Text(red(`error\n${projected.text}`), 1, 0));
+						break;
 				}
-				case "error":
-					transcript.addChild(new Text(red(`error\n${projected.text}`), 1, 0));
-					break;
 			}
-		}
+			tui.requestRender();
+		});
+	};
+
+	const rebindSession = async (session: AgentSession) => {
+		activeSession = session;
+		activePromptCancelled = false;
+		currentAutoCompaction = undefined;
+		currentAssistant = undefined;
+		currentAssistantText = "";
+		currentThinking = undefined;
+		currentThinkingText = "";
+		tools.clear();
+		transcript.clear();
+		renderHistory(transcript, activeSession.messages);
+		subscribeToSession();
+		footer.setText(dim(idleFooter()));
 		tui.requestRender();
+	};
+
+	options.sessionRuntime.setBeforeSessionInvalidate(() => {
+		unsubscribeEvents?.();
+		unsubscribeEvents = undefined;
 	});
+	options.sessionRuntime.setRebindSession(rebindSession);
+	subscribeToSession();
 
 	return new Promise<number>((resolve) => {
 		const finish = (code: number) => {
 			if (closed) return;
 			closed = true;
 			unsubscribeInput();
-			unsubscribeEvents();
+			unsubscribeEvents?.();
+			options.sessionRuntime.setBeforeSessionInvalidate(undefined);
+			options.sessionRuntime.setRebindSession(undefined);
 			tui.stop();
 			resolve(code);
 		};
@@ -167,6 +197,40 @@ export async function runInteractiveMode(options: {
 				tui.requestRender();
 				return;
 			}
+			if (commandAction === "new-session-usage") {
+				editor.addToHistory(raw);
+				editor.setText("");
+				transcript.addChild(new Text(red("Usage: /clear"), 1, 0));
+				tui.requestRender();
+				return;
+			}
+			if (commandAction === "new-session") {
+				editor.addToHistory(raw);
+				editor.setText("");
+				busy = true;
+				editor.disableSubmit = true;
+				try {
+					const result = await options.sessionRuntime.newSession();
+					if (!result.cancelled) {
+						terminal.clearScreen();
+						tui.requestRender();
+					}
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					terminal.clearScreen();
+					terminal.write(`${red(`senko: could not start a new session: ${message}`)}\n`);
+					finish(1);
+					return;
+				} finally {
+					if (!closed) {
+						busy = false;
+						editor.disableSubmit = false;
+						footer.setText(dim(idleFooter()));
+						tui.requestRender();
+					}
+				}
+				return;
+			}
 			if (commandAction === "compact") {
 				editor.addToHistory(raw);
 				editor.setText("");
@@ -174,9 +238,9 @@ export async function runInteractiveMode(options: {
 				transcript.addChild(status);
 				busy = true;
 				editor.disableSubmit = true;
-				footer.setText(dim(`compacting · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel}`));
+				footer.setText(dim(`compacting · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel()}`));
 				tui.requestRender();
-				const result = await compactCurrentSession(options.session);
+				const result = await compactCurrentSession(activeSession);
 				const message = compactCommandMessage(result);
 				status.setText(
 					result.status === "success"
@@ -187,7 +251,7 @@ export async function runInteractiveMode(options: {
 				);
 				busy = false;
 				editor.disableSubmit = false;
-				footer.setText(dim(idleFooter));
+				footer.setText(dim(idleFooter()));
 				tui.requestRender();
 				return;
 			}
@@ -204,7 +268,7 @@ export async function runInteractiveMode(options: {
 			busy = true;
 			activePromptCancelled = false;
 			editor.disableSubmit = true;
-			footer.setText(dim(workingFooter));
+			footer.setText(dim(workingFooter()));
 			tui.requestRender();
 			try {
 				await promptWithAutoCompaction({
@@ -212,7 +276,7 @@ export async function runInteractiveMode(options: {
 					isCancelled: () => activePromptCancelled,
 					onDisplayEvent: displayAutoCompaction,
 					prompt: raw,
-					session: options.session,
+					session: activeSession,
 				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -220,7 +284,7 @@ export async function runInteractiveMode(options: {
 			} finally {
 				busy = false;
 				editor.disableSubmit = false;
-				footer.setText(dim(idleFooter));
+				footer.setText(dim(idleFooter()));
 				tui.requestRender();
 			}
 		};
@@ -230,10 +294,10 @@ export async function runInteractiveMode(options: {
 			const action = interruptAction(data, busy);
 			if (action === "abort") {
 				activePromptCancelled = true;
-				if (options.session.isCompacting) {
-					options.session.abortCompaction();
+				if (activeSession.isCompacting) {
+					activeSession.abortCompaction();
 				} else {
-					void options.session.abort();
+					void activeSession.abort();
 				}
 				return { consume: true };
 			}
