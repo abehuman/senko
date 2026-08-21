@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { discoverResources, findRepositoryRoot, scopeDirectories } from "../src/resources.js";
+import { discoverResources, findRepositoryRoot, loadBaseSystemPrompt, scopeDirectories } from "../src/resources.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -26,6 +26,14 @@ afterEach(async () => {
 });
 
 describe("portable resource discovery", () => {
+	it("loads the base system prompt from its Markdown asset", () => {
+		const prompt = loadBaseSystemPrompt();
+		expect(prompt).toContain("You are Senko, a fast terminal coding agent.");
+		expect(prompt).toContain("# Project instructions");
+		expect(prompt).toContain("# Tool use");
+		expect(prompt).toContain("no sandbox or per-tool approval boundary");
+	});
+
 	it("combines AGENTS.md root-to-working-directory and applies nearer skills last", async () => {
 		const repository = await makeDirectory("senko-resource-repo-");
 		const home = await makeDirectory("senko-resource-home-");

@@ -114,9 +114,10 @@ Sessions are stored under `$XDG_STATE_HOME/senko/sessions`, or `~/.local/state/s
 
 ## Agent resources
 
-Senko reads portable instructions from `AGENTS.md` files between the repository root and the working directory. It
-discovers skills from repository `.agents/skills/` directories and from `~/.agents/skills/`. It does not load
-`.pi`, `.claude`, `.opencode`, or `.senko` project resources.
+Senko's built-in base instructions live in [`apps/cli/src/prompts/base.md`](apps/cli/src/prompts/base.md) and are
+bundled with the CLI. Senko also reads portable instructions from `AGENTS.md` files between the repository root and
+the working directory. It discovers skills from repository `.agents/skills/` directories and from
+`~/.agents/skills/`. It does not load `.pi`, `.claude`, `.opencode`, or `.senko` project resources.
 
 See [the architecture](docs/architecture.md), [benchmark definitions](benchmarks/README.md), and
 [future inference API contract](docs/inference-api.md) for details.

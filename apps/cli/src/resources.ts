@@ -15,12 +15,11 @@ export interface DiscoveredResources {
 	skills: Skill[];
 }
 
-const SYSTEM_PROMPT = `You are Senko, a fast terminal coding agent.
-Work directly in the user's current repository and complete requested coding tasks end to end.
-Inspect relevant files before changing them, keep edits focused, and verify work proportionally.
-Use the available read, write, edit, and shell tools whenever they help.
-Tools execute automatically with the user's host permissions; do not claim that a sandbox or approval boundary exists.
-Follow every applicable AGENTS.md instruction and load a listed skill's SKILL.md when its description matches the task.`;
+const baseSystemPromptUrl = new URL("./prompts/base.md", import.meta.url);
+
+export function loadBaseSystemPrompt(): string {
+	return readFileSync(baseSystemPromptUrl, "utf8").trim();
+}
 
 export function findRepositoryRoot(cwd: string): string {
 	const resolvedCwd = resolve(cwd);
@@ -108,7 +107,7 @@ export async function createResourceLoader(options: {
 		noThemes: true,
 		settingsManager: options.settingsManager,
 		skillsOverride: () => ({ diagnostics: resources.diagnostics, skills: resources.skills }),
-		systemPrompt: SYSTEM_PROMPT,
+		systemPrompt: loadBaseSystemPrompt(),
 	});
 	await loader.reload();
 	return { diagnostics: resources.diagnostics, loader };

@@ -14,7 +14,8 @@ Milestone 1 is a pnpm workspace containing only `apps/cli`. A future Cloudflare 
 2. Parse CLI flags with localized usage errors and decide between help, version, session listing, print mode, and
    interactive mode.
 3. Resolve non-secret settings from flags, `SENKO_*` environment variables, and the XDG configuration file.
-4. Discover portable `AGENTS.md` and `.agents/skills` resources without loading vendor-specific directories.
+4. Load Senko's built-in base instructions from its bundled Markdown asset and discover portable `AGENTS.md` and
+   `.agents/skills` resources without loading vendor-specific directories.
 5. Register one in-memory `senko` model provider with Pi's `ModelRuntime`.
 6. Select an in-memory or XDG-backed Pi `SessionManager`.
 7. Create the Pi `AgentSession` with full-auto read, write, edit, and shell tools.
