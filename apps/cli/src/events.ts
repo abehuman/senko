@@ -1,7 +1,9 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import { type AutoCompactionDisplayEvent, autoCompactionEndEvent, autoCompactionStartEvent } from "./auto-compact.js";
 
 export type DisplayEvent =
 	| { type: "assistant_start" }
+	| AutoCompactionDisplayEvent
 	| { type: "text_delta"; text: string }
 	| { type: "thinking_delta"; text: string }
 	| { type: "tool_start"; id: string; label: string }
@@ -63,6 +65,19 @@ function summarizeArgs(args: unknown): string {
 
 export function projectEvent(event: AgentSessionEvent): DisplayEvent[] {
 	switch (event.type) {
+		case "compaction_start":
+			if (event.reason === "manual") return [];
+			return [autoCompactionStartEvent(event.reason)];
+		case "compaction_end":
+			if (event.reason === "manual") return [];
+			return [
+				autoCompactionEndEvent({
+					aborted: event.aborted,
+					errorMessage: event.errorMessage,
+					result: event.result,
+					willRetry: event.willRetry,
+				}),
+			];
 		case "message_start":
 			return event.message.role === "assistant" ? [{ type: "assistant_start" }] : [];
 		case "message_update": {

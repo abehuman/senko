@@ -2,7 +2,7 @@ import { createServer, type IncomingHttpHeaders, type ServerResponse } from "nod
 import type { AddressInfo } from "node:net";
 
 export type MockProtocol = "openai-completions" | "openai-responses";
-export type MockScenario = "error" | "text" | "tools";
+export type MockScenario = "error" | "overflow-recovery" | "preflight-compact" | "text" | "tools";
 
 export interface RecordedRequest {
 	body: Record<string, unknown>;
@@ -60,14 +60,14 @@ function chatChunk(delta: Record<string, unknown>, finishReason: string | null):
 	};
 }
 
-function sendChatText(response: ServerResponse, text: string): void {
+function sendChatText(response: ServerResponse, text: string, promptTokens = 1): void {
 	const midpoint = Math.max(1, Math.floor(text.length / 2));
 	sendSse(response, [
 		chatChunk({ content: text.slice(0, midpoint), role: "assistant" }, null),
 		chatChunk({ content: text.slice(midpoint) }, null),
 		{
 			...chatChunk({}, "stop"),
-			usage: { completion_tokens: 1, prompt_tokens: 1, total_tokens: 2 },
+			usage: { completion_tokens: 1, prompt_tokens: promptTokens, total_tokens: promptTokens + 1 },
 		},
 		"[DONE]",
 	]);
@@ -95,7 +95,7 @@ function sendChatTool(response: ServerResponse, step: ToolStep, index: number): 
 	]);
 }
 
-function responseEnvelope(output: Record<string, unknown>[]): Record<string, unknown> {
+function responseEnvelope(output: Record<string, unknown>[], inputTokens = 1): Record<string, unknown> {
 	return {
 		created_at: 1_787_188_523,
 		error: null,
@@ -117,16 +117,16 @@ function responseEnvelope(output: Record<string, unknown>[]): Record<string, unk
 		top_p: 1,
 		truncation: "disabled",
 		usage: {
-			input_tokens: 1,
+			input_tokens: inputTokens,
 			input_tokens_details: { cached_tokens: 0 },
 			output_tokens: 1,
 			output_tokens_details: { reasoning_tokens: 0 },
-			total_tokens: 2,
+			total_tokens: inputTokens + 1,
 		},
 	};
 }
 
-function sendResponsesText(response: ServerResponse, text: string): void {
+function sendResponsesText(response: ServerResponse, text: string, inputTokens = 1): void {
 	const item = {
 		content: [{ annotations: [], text, type: "output_text" }],
 		id: "msg_mock",
@@ -136,11 +136,11 @@ function sendResponsesText(response: ServerResponse, text: string): void {
 	};
 	const pendingItem = { ...item, content: [], status: "in_progress" };
 	sendSse(response, [
-		{ response: { ...responseEnvelope([]), status: "in_progress" }, type: "response.created" },
+		{ response: { ...responseEnvelope([], inputTokens), status: "in_progress" }, type: "response.created" },
 		{ item: pendingItem, output_index: 0, type: "response.output_item.added" },
 		{ content_index: 0, delta: text, item_id: "msg_mock", output_index: 0, type: "response.output_text.delta" },
 		{ item, output_index: 0, type: "response.output_item.done" },
-		{ response: responseEnvelope([item]), type: "response.completed" },
+		{ response: responseEnvelope([item], inputTokens), type: "response.completed" },
 	]);
 }
 
@@ -175,6 +175,18 @@ function sendResponsesTool(response: ServerResponse, step: ToolStep, index: numb
 	]);
 }
 
+function isCompactionRequest(body: Record<string, unknown>): boolean {
+	return JSON.stringify(body).includes("structured context checkpoint summary");
+}
+
+function sendText(protocol: MockProtocol, response: ServerResponse, text: string, inputTokens = 1): void {
+	if (protocol === "openai-completions") {
+		sendChatText(response, text, inputTokens);
+	} else {
+		sendResponsesText(response, text, inputTokens);
+	}
+}
+
 async function readBody(request: NodeJS.ReadableStream): Promise<Record<string, unknown>> {
 	const chunks: Buffer[] = [];
 	for await (const chunk of request) {
@@ -190,6 +202,9 @@ export async function startMockInferenceServer(options: {
 }): Promise<MockInferenceServer> {
 	const requests: RecordedRequest[] = [];
 	const scenario = options.scenario ?? "text";
+	let compactionRequests = 0;
+	let mainRequests = 0;
+	let overflowSent = false;
 	const expectedPath = options.protocol === "openai-completions" ? "/v1/chat/completions" : "/v1/responses";
 	const server = createServer(async (request, response) => {
 		try {
@@ -204,6 +219,51 @@ export async function startMockInferenceServer(options: {
 				sendJson(response, 429, {
 					error: { code: "rate_limit", message: "deterministic mock failure", type: "rate_limit_error" },
 				});
+				return;
+			}
+			if (isCompactionRequest(body)) {
+				compactionRequests++;
+				sendText(options.protocol, response, "mock compacted summary", 1_000);
+				return;
+			}
+			if (scenario === "preflight-compact") {
+				const mainRequestIndex = mainRequests++;
+				if (mainRequestIndex >= 2 && compactionRequests === 0) {
+					sendJson(response, 400, {
+						error: {
+							code: "unsafe_preflight_request",
+							message: "mock rejected a prompt that crossed the safe context threshold",
+							type: "invalid_request_error",
+						},
+					});
+					return;
+				}
+				sendText(options.protocol, response, "pong", mainRequestIndex === 1 ? 23_000 : 1);
+				return;
+			}
+			if (scenario === "overflow-recovery") {
+				const mainRequestIndex = mainRequests++;
+				if (mainRequestIndex === 1 && !overflowSent) {
+					overflowSent = true;
+					sendJson(response, 400, {
+						error: {
+							code: "context_length_exceeded",
+							message: "This model's maximum context length is 32768 tokens.",
+							type: "invalid_request_error",
+						},
+					});
+					return;
+				}
+				if (mainRequestIndex >= 2 && compactionRequests !== 1) {
+					sendJson(response, 500, {
+						error: {
+							message: "mock expected exactly one compaction before overflow retry",
+							type: "mock_server_error",
+						},
+					});
+					return;
+				}
+				sendText(options.protocol, response, "pong", 1);
 				return;
 			}
 

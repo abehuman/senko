@@ -7,6 +7,7 @@ import {
 	type SessionManager,
 	SettingsManager,
 } from "@earendil-works/pi-coding-agent";
+import { createAutoCompactionSettings } from "./auto-compact.js";
 import type { RuntimeConfig } from "./config.js";
 import { createProvider } from "./provider.js";
 import { createResourceLoader } from "./resources.js";
@@ -23,7 +24,7 @@ export async function createRuntime(options: {
 	sessionManager: SessionManager;
 }): Promise<SenkoRuntime> {
 	const settingsManager = SettingsManager.inMemory({
-		compaction: { enabled: true },
+		compaction: createAutoCompactionSettings(options.config),
 		defaultProjectTrust: "always",
 		defaultTools: ["read", "write", "edit", "bash"],
 		enableAnalytics: false,

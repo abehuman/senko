@@ -51,7 +51,7 @@ export async function runApp(options: {
 			if (!prompt) {
 				throw new SenkoError("Print mode requires a prompt or non-empty piped stdin.", 2);
 			}
-			return await runPrintMode(runtime.session, prompt);
+			return await runPrintMode(runtime.session, prompt, config);
 		}
 		const { runInteractiveMode } = await import("./ui/interactive.js");
 		return await runInteractiveMode({ config, cwd, initialPrompt: prompt, session: runtime.session });

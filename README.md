@@ -52,10 +52,17 @@ A non-TTY stdin stream automatically selects print mode. New sessions persist by
 ephemeral run. `--continue` selects the newest session for the current working directory, while `--resume` accepts an
 exact session ID or a unique prefix.
 
-Inside the interactive TUI, `/compact` summarizes the current session context using the active model and does not
-accept additional instructions. `/exit` ends Senko and `/quit` is its alias. The planned `/model`, `/new`, `/clear`,
-`/plan`, and `/resume` commands are recognized as placeholders and currently display
-`This feature is not built yet.` without contacting the model.
+Senko automatically compacts long sessions with the active model before their configured context limit. Before each
+prompt, it includes the pending prompt in its estimate and keeps `maxOutputTokens` plus Pi's 4,096-token request
+safety margin free. It preserves up to 20,000 recent tokens, leaves room for the generated summary, and replaces older
+model-visible history with that persisted summary. The TUI shows compaction progress; print mode writes it to stderr
+without mixing it into assistant stdout. If a provider still reports an early context overflow, Senko visibly
+compacts and retries once.
+
+Inside the interactive TUI, `/compact` performs the same compaction on demand and does not accept additional
+instructions. `Escape` or `Ctrl+C` cancels an active manual or automatic compaction. `/exit` ends Senko and `/quit` is
+its alias. The planned `/model`, `/new`, `/clear`, `/plan`, and `/resume` commands are recognized as placeholders and
+currently display `This feature is not built yet.` without contacting the model.
 
 ## Configuration
 
@@ -88,6 +95,9 @@ The non-secret configuration file is `$XDG_CONFIG_HOME/senko/config.json`, or
 API keys are accepted only through `SENKO_API_KEY`; they are never read from the configuration file or written to
 session files. Loopback endpoints can run without a user-supplied key. `baseUrl` is the complete API root: Senko
 removes one trailing slash but never appends `/v1`.
+
+`maxOutputTokens` must be at least 2, and `contextWindow` must be greater than `maxOutputTokens` plus the 4,096-token
+request safety margin.
 
 Sessions are stored under `$XDG_STATE_HOME/senko/sessions`, or `~/.local/state/senko/sessions` when
 `XDG_STATE_HOME` is unset.

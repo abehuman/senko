@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { CliArgs, SenkoApi } from "./args.js";
+import { PI_CONTEXT_SAFETY_TOKENS } from "./auto-compact.js";
 import { SenkoError } from "./errors.js";
 import { getConfigPath } from "./paths.js";
 
@@ -165,8 +166,13 @@ export async function resolveConfig(options: ResolveConfigOptions): Promise<Runt
 	}
 	const contextWindow = file.contextWindow ?? 32_768;
 	const maxOutputTokens = file.maxOutputTokens ?? 4_096;
-	if (maxOutputTokens > contextWindow) {
-		throw new SenkoError(`maxOutputTokens cannot exceed contextWindow in ${configPath}.`);
+	if (maxOutputTokens < 2) {
+		throw new SenkoError(`maxOutputTokens must be at least 2 in ${configPath}.`);
+	}
+	if (maxOutputTokens + PI_CONTEXT_SAFETY_TOKENS >= contextWindow) {
+		throw new SenkoError(
+			`contextWindow must be greater than maxOutputTokens plus ${PI_CONTEXT_SAFETY_TOKENS.toLocaleString("en-US")} safety tokens in ${configPath}.`,
+		);
 	}
 
 	return {

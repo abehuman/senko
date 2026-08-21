@@ -1,5 +1,6 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { Container, Editor, ProcessTerminal, Text, TuiMainScreen } from "@earendil-works/pi-tui";
+import { type AutoCompactionDisplayEvent, promptWithAutoCompaction } from "../auto-compact.js";
 import type { RuntimeConfig } from "../config.js";
 import { contentToText, projectEvent } from "../events.js";
 import { compactCommandMessage, compactCurrentSession } from "./compact.js";
@@ -41,11 +42,9 @@ export async function runInteractiveMode(options: {
 	const header = new Text(`${cyan("senko")} ${dim("fast coding agent")}`, 1, 0);
 	const editor = new Editor(tui, editorTheme, { paddingX: 1 });
 	const sessionLabel = options.session.sessionId.slice(0, 12);
-	const footer = new Text(
-		dim(`${options.config.model} · ${options.config.api} · ${options.cwd} · ${sessionLabel}`),
-		1,
-		0,
-	);
+	const idleFooter = `${options.config.model} · ${options.config.api} · ${options.cwd} · ${sessionLabel}`;
+	const workingFooter = `working · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel}`;
+	const footer = new Text(dim(idleFooter), 1, 0);
 	tui.addChild(header);
 	tui.addChild(transcript);
 	renderHistory(transcript, options.session.messages);
@@ -55,15 +54,45 @@ export async function runInteractiveMode(options: {
 
 	let busy = false;
 	let closed = false;
+	let activePromptCancelled = false;
+	let currentAutoCompaction: Text | undefined;
 	let currentAssistant: Text | undefined;
 	let currentAssistantText = "";
 	let currentThinking: Text | undefined;
 	let currentThinkingText = "";
 	const tools = new Map<string, { component: Text; label: string }>();
+	const displayAutoCompaction = (projected: AutoCompactionDisplayEvent) => {
+		switch (projected.type) {
+			case "auto_compaction_start":
+				currentAutoCompaction = new Text(dim(projected.text), 1, 0);
+				transcript.addChild(currentAutoCompaction);
+				footer.setText(dim(`compacting · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel}`));
+				break;
+			case "auto_compaction_end": {
+				const component = currentAutoCompaction ?? new Text("", 1, 0);
+				if (!currentAutoCompaction) transcript.addChild(component);
+				component.setText(
+					projected.status === "success"
+						? green(`✓ ${projected.text}`)
+						: projected.status === "cancelled"
+							? dim(projected.text)
+							: red(projected.text),
+				);
+				currentAutoCompaction = undefined;
+				footer.setText(dim(busy ? workingFooter : idleFooter));
+				break;
+			}
+		}
+		tui.requestRender();
+	};
 
 	const unsubscribeEvents = options.session.subscribe((event) => {
 		for (const projected of projectEvent(event)) {
 			switch (projected.type) {
+				case "auto_compaction_start":
+				case "auto_compaction_end":
+					displayAutoCompaction(projected);
+					break;
 				case "assistant_start":
 					currentAssistantText = "";
 					currentThinkingText = "";
@@ -158,7 +187,7 @@ export async function runInteractiveMode(options: {
 				);
 				busy = false;
 				editor.disableSubmit = false;
-				footer.setText(dim(`${options.config.model} · ${options.config.api} · ${options.cwd} · ${sessionLabel}`));
+				footer.setText(dim(idleFooter));
 				tui.requestRender();
 				return;
 			}
@@ -173,18 +202,25 @@ export async function runInteractiveMode(options: {
 			editor.setText("");
 			transcript.addChild(new Text(`${cyan("you")}\n${raw}`, 1, 0));
 			busy = true;
+			activePromptCancelled = false;
 			editor.disableSubmit = true;
-			footer.setText(dim(`working · Esc/Ctrl+C abort · ${options.config.model} · ${sessionLabel}`));
+			footer.setText(dim(workingFooter));
 			tui.requestRender();
 			try {
-				await options.session.prompt(raw, { source: "interactive" });
+				await promptWithAutoCompaction({
+					config: options.config,
+					isCancelled: () => activePromptCancelled,
+					onDisplayEvent: displayAutoCompaction,
+					prompt: raw,
+					session: options.session,
+				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				transcript.addChild(new Text(red(`error\n${message}`), 1, 0));
 			} finally {
 				busy = false;
 				editor.disableSubmit = false;
-				footer.setText(dim(`${options.config.model} · ${options.config.api} · ${options.cwd} · ${sessionLabel}`));
+				footer.setText(dim(idleFooter));
 				tui.requestRender();
 			}
 		};
@@ -193,6 +229,7 @@ export async function runInteractiveMode(options: {
 		const unsubscribeInput = tui.addInputListener((data) => {
 			const action = interruptAction(data, busy);
 			if (action === "abort") {
+				activePromptCancelled = true;
 				if (options.session.isCompacting) {
 					options.session.abortCompaction();
 				} else {

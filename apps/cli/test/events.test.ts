@@ -51,4 +51,73 @@ describe("TUI event projection", () => {
 			]),
 		).toBe("answer\nreason");
 	});
+
+	it("renders automatic compaction while leaving manual compaction to the slash command", () => {
+		expect(projectEvent(event({ type: "compaction_start", reason: "manual" }))).toEqual([]);
+		expect(projectEvent(event({ type: "compaction_start", reason: "threshold" }))).toEqual([
+			{
+				reason: "threshold",
+				text: "Auto-compacting context before the limit…",
+				type: "auto_compaction_start",
+			},
+		]);
+		expect(
+			projectEvent(
+				event({
+					aborted: false,
+					reason: "overflow",
+					result: { estimatedTokensAfter: 7_200, tokensBefore: 24_100 },
+					type: "compaction_end",
+					willRetry: true,
+				}),
+			),
+		).toEqual([
+			{
+				status: "success",
+				text: "Context auto-compacted: 24,100 → ~7,200 tokens. Retrying the request.",
+				type: "auto_compaction_end",
+				willRetry: true,
+			},
+		]);
+	});
+
+	it("renders automatic compaction cancellation and errors", () => {
+		expect(
+			projectEvent(
+				event({
+					aborted: true,
+					reason: "threshold",
+					result: undefined,
+					type: "compaction_end",
+					willRetry: false,
+				}),
+			),
+		).toEqual([
+			{
+				status: "cancelled",
+				text: "Auto-compaction cancelled.",
+				type: "auto_compaction_end",
+				willRetry: false,
+			},
+		]);
+		expect(
+			projectEvent(
+				event({
+					aborted: false,
+					errorMessage: "Auto-compaction failed: endpoint unavailable",
+					reason: "threshold",
+					result: undefined,
+					type: "compaction_end",
+					willRetry: false,
+				}),
+			),
+		).toEqual([
+			{
+				status: "error",
+				text: "Auto-compaction failed: endpoint unavailable",
+				type: "auto_compaction_end",
+				willRetry: false,
+			},
+		]);
+	});
 });

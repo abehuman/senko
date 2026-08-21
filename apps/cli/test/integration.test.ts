@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { type MockProtocol, startMockInferenceServer } from "./helpers/mock-inference-server.js";
+import { type MockProtocol, type MockScenario, startMockInferenceServer } from "./helpers/mock-inference-server.js";
 import { runCli } from "./helpers/run-cli.js";
 
 const temporaryDirectories: string[] = [];
@@ -14,7 +14,7 @@ async function temporaryDirectory(prefix: string): Promise<string> {
 	return directory;
 }
 
-async function startServer(protocol: MockProtocol, scenario: "error" | "text" | "tools" = "text") {
+async function startServer(protocol: MockProtocol, scenario: MockScenario = "text") {
 	const server = await startMockInferenceServer({ protocol, scenario });
 	openServers.push(server);
 	return server;
@@ -44,6 +44,14 @@ async function filesBelow(path: string): Promise<string[]> {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
 		throw error;
 	}
+}
+
+function isCompactionRequest(request: { body: Record<string, unknown> }): boolean {
+	return JSON.stringify(request.body).includes("structured context checkpoint summary");
+}
+
+function requestedOutputTokens(protocol: MockProtocol, body: Record<string, unknown>): unknown {
+	return protocol === "openai-responses" ? body.max_output_tokens : (body.max_completion_tokens ?? body.max_tokens);
 }
 
 afterEach(async () => {
@@ -113,6 +121,91 @@ describe.sequential("CLI integration", () => {
 		expect(await readFile(join(cwd, "shell.txt"), "utf8")).toBe("shell-ok\n");
 		expect(server.requests).toHaveLength(5);
 	});
+
+	it.each<MockProtocol>(["openai-completions", "openai-responses"])(
+		"compacts before a pending prompt crosses the safe threshold through %s",
+		async (protocol) => {
+			const root = await temporaryDirectory("senko-preflight-compact-");
+			const cwd = join(root, "workspace");
+			await mkdir(cwd);
+			const server = await startServer(protocol, "preflight-compact");
+			const env = runtimeEnvironment(server.baseUrl, root);
+			const protocolArgs = ["--api", protocol];
+
+			const first = await runCli({ args: protocolArgs, cwd, env, input: "first turn" });
+			expect(first.code, first.stderr).toBe(0);
+			const second = await runCli({
+				args: ["--continue", ...protocolArgs],
+				cwd,
+				env,
+				input: `second turn\n${"b".repeat(90_000)}`,
+				timeoutMs: 25_000,
+			});
+			expect(second.code, second.stderr).toBe(0);
+
+			const continued = await runCli({
+				args: ["--continue", ...protocolArgs],
+				cwd,
+				env,
+				input: `third turn\n${"c".repeat(8_000)}`,
+				timeoutMs: 25_000,
+			});
+
+			expect(continued.code, continued.stderr).toBe(0);
+			expect(continued.stdout).toBe("pong\n");
+			expect(continued.stderr).toContain("Auto-compacting context before the limit…");
+			expect(continued.stderr).toContain("Context auto-compacted:");
+			expect(continued.stderr).not.toContain("Context limit reached");
+			expect(server.requests.map(isCompactionRequest)).toEqual([false, false, true, false]);
+
+			const summaryRequest = server.requests[2];
+			expect(Number(requestedOutputTokens(protocol, summaryRequest?.body ?? {}))).toBeGreaterThan(0);
+			expect(Number(requestedOutputTokens(protocol, summaryRequest?.body ?? {}))).toBeLessThanOrEqual(4_096);
+			expect(JSON.stringify(server.requests[3]?.body)).toContain("mock compacted summary");
+
+			const sessionsDirectory = join(root, "state", "senko", "sessions");
+			const sessionFiles = (await filesBelow(sessionsDirectory)).filter((path) => path.endsWith(".jsonl"));
+			expect(sessionFiles).toHaveLength(1);
+			const sessionSource = await readFile(sessionFiles[0] ?? "", "utf8");
+			expect(sessionSource).toContain('"type":"compaction"');
+			expect(sessionSource).not.toContain("integration-secret");
+		},
+	);
+
+	it.each<MockProtocol>(["openai-completions", "openai-responses"])(
+		"compacts and retries exactly once after a %s context overflow",
+		async (protocol) => {
+			const root = await temporaryDirectory("senko-overflow-compact-");
+			const cwd = join(root, "workspace");
+			await mkdir(cwd);
+			const server = await startServer(protocol, "overflow-recovery");
+			const env = runtimeEnvironment(server.baseUrl, root);
+			const protocolArgs = ["--api", protocol];
+
+			const first = await runCli({ args: protocolArgs, cwd, env, input: "first turn" });
+			expect(first.code, first.stderr).toBe(0);
+			const recovered = await runCli({
+				args: ["--continue", ...protocolArgs],
+				cwd,
+				env,
+				input: `overflow turn\n${"x".repeat(90_000)}`,
+				timeoutMs: 25_000,
+			});
+
+			expect(recovered.code, recovered.stderr).toBe(0);
+			expect(recovered.stdout).toBe("pong\n");
+			expect(recovered.stderr).toContain("Context limit reached; auto-compacting before retry…");
+			expect(recovered.stderr).toContain("Retrying the request.");
+			expect(recovered.stderr).not.toContain("Auto-compacting context before the limit…");
+			expect(server.requests.map(isCompactionRequest)).toEqual([false, false, true, false]);
+			expect(JSON.stringify(server.requests[3]?.body)).toContain("mock compacted summary");
+
+			const sessionsDirectory = join(root, "state", "senko", "sessions");
+			const sessionFiles = (await filesBelow(sessionsDirectory)).filter((path) => path.endsWith(".jsonl"));
+			expect(sessionFiles).toHaveLength(1);
+			expect(await readFile(sessionFiles[0] ?? "", "utf8")).toContain('"type":"compaction"');
+		},
+	);
 
 	it("does not hide retries after endpoint errors", async () => {
 		const root = await temporaryDirectory("senko-error-");

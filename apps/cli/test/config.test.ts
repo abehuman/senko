@@ -100,6 +100,40 @@ describe("resolveConfig", () => {
 		expect(normalizeBaseUrl("https://api.example").baseUrl).toBe("https://api.example");
 	});
 
+	it("requires room for model input in the configured context window", async () => {
+		const directory = await temporaryDirectory();
+		const configPath = join(directory, "config.json");
+		await writeFile(
+			configPath,
+			JSON.stringify({
+				baseUrl: "http://localhost:9000/v1",
+				contextWindow: 4_096,
+				maxOutputTokens: 4_096,
+			}),
+		);
+
+		await expect(resolveConfig({ args: {}, configPath, env: {} })).rejects.toThrow(
+			"contextWindow must be greater than maxOutputTokens plus 4,096 safety tokens",
+		);
+	});
+
+	it("rejects a one-token output limit", async () => {
+		const directory = await temporaryDirectory();
+		const configPath = join(directory, "config.json");
+		await writeFile(
+			configPath,
+			JSON.stringify({
+				baseUrl: "http://localhost:9000/v1",
+				contextWindow: 32_768,
+				maxOutputTokens: 1,
+			}),
+		);
+
+		await expect(resolveConfig({ args: {}, configPath, env: {} })).rejects.toThrow(
+			"maxOutputTokens must be at least 2",
+		);
+	});
+
 	it.each([
 		["not-a-url", "absolute HTTP or HTTPS"],
 		["ftp://localhost/v1", "must use HTTP or HTTPS"],
