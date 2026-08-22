@@ -1,7 +1,16 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.2.2/schema.json",
 	"files": {
-		"includes": ["**", "!**/dist", "!**/coverage", "!**/node_modules", "!pnpm-lock.yaml"]
+		"includes": [
+			"**",
+			"!**/dist",
+			"!**/coverage",
+			"!**/node_modules",
+			"!**/.svelte-kit",
+			"!**/build",
+			"!apps/website/src/**/*.svelte",
+			"!pnpm-lock.yaml"
+		]
 	},
 	"formatter": {
 		"enabled": true,
@@ -11,7 +20,10 @@
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"recommended": true
+			"recommended": true,
+			"suspicious": {
+				"noUnknownAtRules": "off"
+			}
 		}
 	},
 	"javascript": {

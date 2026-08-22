@@ -23,6 +23,12 @@ pnpm test
 pnpm dev -- --help
 ```
 
+To work on the product website locally:
+
+```sh
+pnpm dev:website
+```
+
 Run every local verification step with:
 
 ```sh

@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+	--font-sans: "Helvetica Neue", "Hiragino Sans", "Yu Gothic", YuGothic, Meiryo, Arial, sans-serif;
+	--font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+	--color-background: oklch(0.97 0.003 100);
+	--color-foreground: oklch(0.19 0 0);
+	--color-card: oklch(1 0 0);
+	--color-card-foreground: oklch(0.19 0 0);
+	--color-muted: oklch(0.925 0.003 100);
+	--color-muted-foreground: oklch(0.48 0 0);
+	--color-border: oklch(0.84 0.002 100);
+	--color-primary: oklch(0.86 0.2 134);
+	--color-primary-foreground: oklch(0.19 0 0);
+	--color-accent: oklch(0.86 0.2 134);
+	--color-accent-foreground: oklch(0.19 0 0);
+	--radius: 0.625rem;
+}
+
+:root {
+	background: #f5f5f1;
+	color: #181818;
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+}
+
+body {
+	min-width: 320px;
+	margin: 0;
+	background: #f5f5f1;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+::selection {
+	background: #a4f374;
+	color: #181818;
+}

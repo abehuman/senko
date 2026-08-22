@@ -14,10 +14,11 @@
 		"node": ">=22.19.0"
 	},
 	"scripts": {
-		"bench": "pnpm build && node benchmarks/cli.mjs",
-		"build": "pnpm --filter @senkocode/cli build",
+		"bench": "pnpm --filter @senkocode/cli build && node benchmarks/cli.mjs",
+		"build": "pnpm --filter @senkocode/cli build && pnpm --filter @senkocode/website build",
 		"check": "pnpm lint && pnpm typecheck && pnpm test",
 		"dev": "pnpm --filter @senkocode/cli dev",
+		"dev:website": "pnpm --filter @senkocode/website dev",
 		"format": "biome format --write .",
 		"lint": "biome check .",
 		"package": "pnpm --filter @senkocode/cli pack",
@@ -25,7 +26,7 @@
 		"smoke:pack": "node scripts/package-smoke.mjs",
 		"test": "pnpm build && vitest run",
 		"test:watch": "pnpm build && vitest",
-		"typecheck": "pnpm --filter @senkocode/cli typecheck"
+		"typecheck": "pnpm --filter @senkocode/cli typecheck && pnpm --filter @senkocode/website check"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.2.2",
