@@ -31,7 +31,6 @@ export async function runCli(options: {
 		"SENKO_API_KEY",
 		"SENKO_BASE_URL",
 		"SENKO_LANGUAGE",
-		"SENKO_MODEL",
 	]) {
 		delete env[key];
 	}

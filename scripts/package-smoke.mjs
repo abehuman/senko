@@ -120,7 +120,6 @@ try {
 	Object.assign(smokeEnvironment, {
 		SENKO_API: "openai-completions",
 		SENKO_BASE_URL: mockServer.baseUrl,
-		SENKO_MODEL: "fast",
 		XDG_CONFIG_HOME: join(temporaryRoot, "config"),
 		XDG_STATE_HOME: join(temporaryRoot, "state"),
 	});

@@ -79,8 +79,9 @@ currently display `This feature is not built yet.` without contacting the model.
 
 ## Configuration
 
-Senko resolves settings from CLI flags, then `SENKO_*` environment variables, then the XDG configuration file.
-There is no compiled production endpoint yet.
+Senko resolves supported settings from CLI flags, then their documented `SENKO_*` environment variables, then the
+XDG configuration file. Model selection uses `--model`, then the configuration file's `model` field, then the `fast`
+default; it has no environment-variable override. There is no compiled production endpoint yet.
 
 The interface supports English (`en`), Simplified Chinese (`zh-CN`), Traditional Chinese (`zh-TW`), and Japanese
 (`ja`). Set it with `--language`, `SENKO_LANGUAGE`, or the `language` configuration field. When none is set, Senko
@@ -92,7 +93,6 @@ Commands, option names, environment variables, and raw tool output remain unchan
 ```sh
 export SENKO_BASE_URL=https://example.com/v1
 export SENKO_API_KEY=your-key
-export SENKO_MODEL=fast
 export SENKO_API=openai-completions
 export SENKO_LANGUAGE=ja
 

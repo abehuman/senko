@@ -158,7 +158,7 @@ export async function resolveConfig(options: ResolveConfigOptions): Promise<Runt
 		throw new SenkoError(i18n.t("inferenceEndpointMissing", { path: configPath }));
 	}
 	const { baseUrl, isLoopback } = normalizeBaseUrl(rawBaseUrl, i18n);
-	const model = nonEmpty(options.args.model ?? env.SENKO_MODEL ?? file.model ?? "fast", "Model", i18n) ?? "fast";
+	const model = nonEmpty(options.args.model ?? file.model ?? "fast", "Model", i18n) ?? "fast";
 	const rawApi = nonEmpty(options.args.api ?? env.SENKO_API ?? file.api ?? "openai-completions", "API", i18n);
 	if (!rawApi) {
 		throw new SenkoError(i18n.t("apiEmpty"));

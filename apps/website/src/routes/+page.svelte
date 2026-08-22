@@ -142,7 +142,6 @@
 							<div class="mt-3 whitespace-nowrap"><span class="mr-3 text-primary">$</span>npm install --global @senkocode/cli</div>
 							<div class="whitespace-nowrap text-white/70"><span class="mr-3 text-primary">$</span>export SENKO_BASE_URL=https://api.example.com/v1</div>
 							<div class="whitespace-nowrap text-white/70"><span class="mr-3 text-primary">$</span>export SENKO_API_KEY=your-key</div>
-							<div class="whitespace-nowrap text-white/70"><span class="mr-3 text-primary">$</span>export SENKO_MODEL=your-model</div>
 							<div class="mt-3 whitespace-nowrap"><span class="mr-3 text-primary">$</span>senko "このリポジトリを要約してください"</div>
 						</div>
 					</div>
@@ -233,7 +232,6 @@
 					<div class="flex items-center gap-2 font-mono text-[0.68rem] text-white/50"><Code2 class="size-3.5 text-primary" /> 接続設定</div>
 					<pre class="mt-6 overflow-x-auto font-mono text-xs leading-7 text-white/70 sm:text-sm"><code><span class="text-primary">export</span> SENKO_BASE_URL=https://api.example.com/v1
 <span class="text-primary">export</span> SENKO_API_KEY=your-key
-<span class="text-primary">export</span> SENKO_MODEL=your-model
 <span class="text-primary">export</span> SENKO_API=openai-responses
 
 senko <span class="text-white">"このリポジトリを要約してください"</span></code></pre>

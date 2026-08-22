@@ -73,7 +73,6 @@ export function createTraditionalChineseMessages(formatters: Formatters) {
 環境變數：
   SENKO_BASE_URL              API根網址；Senko服務上線前必須設定
   SENKO_API_KEY               Bearer金鑰；迴路端點以外必須設定
-  SENKO_MODEL                 模型ID
   SENKO_API                   API協定（預設值：openai-completions）
   SENKO_LANGUAGE              介面語言；未設定時從終端機地區設定中偵測
 

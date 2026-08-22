@@ -80,7 +80,6 @@ Options:
 Environment:
   SENKO_BASE_URL              API root; required until Senko's service launches
   SENKO_API_KEY               Bearer key; required except for loopback endpoints
-  SENKO_MODEL                 Model ID
   SENKO_API                   API protocol (default: openai-completions)
   SENKO_LANGUAGE              Interface language; otherwise detected from the terminal locale
 

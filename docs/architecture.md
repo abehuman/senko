@@ -14,7 +14,8 @@ A future Cloudflare Worker may be introduced as `apps/api`, but the CLI does not
    bootstrap never prevents help output when configuration is invalid.
 2. Parse CLI flags with localized usage errors and decide between help, version, session listing, print mode, and
    interactive mode.
-3. Resolve non-secret settings from flags, `SENKO_*` environment variables, and the XDG configuration file.
+3. Resolve non-secret settings from flags, documented `SENKO_*` environment variables where supported, and the XDG
+   configuration file. Model selection specifically uses `--model`, then the configuration file, then `fast`.
 4. Load Senko's built-in base instructions from its bundled Markdown asset and discover portable `AGENTS.md` and
    `.agents/skills` resources without loading vendor-specific directories.
 5. Register one in-memory `senko` model provider with Pi's `ModelRuntime`.

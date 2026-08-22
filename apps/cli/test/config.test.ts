@@ -49,7 +49,6 @@ describe("resolveConfig", () => {
 				SENKO_API_KEY: "test-secret",
 				SENKO_BASE_URL: "https://env.example/v1",
 				SENKO_LANGUAGE: "zh-TW",
-				SENKO_MODEL: "env-model",
 			},
 		});
 
@@ -63,6 +62,20 @@ describe("resolveConfig", () => {
 			model: "flag-model",
 			reasoning: true,
 		});
+	});
+
+	it("ignores the removed model environment override", async () => {
+		const removedModelEnvironmentVariable = ["SENKO", "MODEL"].join("_");
+		const config = await resolveConfig({
+			args: {},
+			configPath: join(await temporaryDirectory(), "missing.json"),
+			env: {
+				SENKO_BASE_URL: "http://127.0.0.1:9000/v1",
+				[removedModelEnvironmentVariable]: "legacy-model",
+			},
+		});
+
+		expect(config.model).toBe("fast");
 	});
 
 	it("validates configured languages with localized errors", async () => {

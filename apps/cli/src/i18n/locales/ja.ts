@@ -74,7 +74,6 @@ export function createJapaneseMessages(formatters: Formatters) {
 環境変数:
   SENKO_BASE_URL              APIルート。Senkoのサービス開始までは必須
   SENKO_API_KEY               Bearerキー。ループバック以外では必須
-  SENKO_MODEL                 モデルID
   SENKO_API                   APIプロトコル（既定値: openai-completions）
   SENKO_LANGUAGE              表示言語。未指定の場合はターミナルのロケールから検出
 

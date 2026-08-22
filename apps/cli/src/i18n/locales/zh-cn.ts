@@ -73,7 +73,6 @@ export function createSimplifiedChineseMessages(formatters: Formatters) {
 环境变量：
   SENKO_BASE_URL              API根地址；Senko服务上线前必须设置
   SENKO_API_KEY               Bearer密钥；回环端点以外必须设置
-  SENKO_MODEL                 模型ID
   SENKO_API                   API协议（默认值：openai-completions）
   SENKO_LANGUAGE              界面语言；未设置时从终端区域设置中检测
 
