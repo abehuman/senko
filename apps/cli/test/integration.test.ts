@@ -92,6 +92,27 @@ describe.sequential("CLI integration", () => {
 		expect(result.stdout).toContain("使い方:");
 	});
 
+	it.each([
+		["en", "To connect to an inference API", "Senko does not load .env files automatically."],
+		["ja", "推論APIへ接続する場合", "Senkoは.envファイルを自動では読み込みません。"],
+	])("explains how to recover from a missing API key in %s", async (locale, guidance, envNotice) => {
+		const root = await temporaryDirectory("senko-api-key-guidance-");
+		const result = await runCli({
+			args: ["--language", locale, "--print", "hello", "--no-session"],
+			cwd: root,
+			env: {
+				HOME: join(root, "home"),
+				XDG_CONFIG_HOME: join(root, "config"),
+			},
+		});
+
+		expect(result).toMatchObject({ code: 1, stdout: "" });
+		expect(result.stderr).toContain(guidance);
+		expect(result.stderr).toContain("export SENKO_API_KEY='your-api-key'");
+		expect(result.stderr).toContain("SENKO_BASE_URL=http://127.0.0.1:1 pnpm dev");
+		expect(result.stderr).toContain(envNotice);
+	});
+
 	it("localizes session listing without requiring inference configuration", async () => {
 		const root = await temporaryDirectory("senko-session-locale-");
 		const result = await runCli({

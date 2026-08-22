@@ -4,7 +4,15 @@ import type { Messages } from "./en.js";
 export function createJapaneseMessages(formatters: Formatters) {
 	return {
 		apiEmpty: () => "APIを空にすることはできません。",
-		apiKeyRequired: () => "ループバック以外の推論エンドポイントではSENKO_API_KEYが必要です。",
+		apiKeyRequired: () => `ループバック以外の推論エンドポイントではSENKO_API_KEYが必要です。
+
+推論APIへ接続する場合は、シェルでAPIキーを設定してから再実行してください:
+  export SENKO_API_KEY='your-api-key'
+
+推論を行わず入力UIだけを確認する場合は、ループバックURLを指定して起動してください:
+  SENKO_BASE_URL=http://127.0.0.1:1 pnpm dev
+
+Senkoは.envファイルを自動では読み込みません。`,
 		apiUnsupported: () => 'SENKO_API/--apiには"openai-completions"または"openai-responses"を指定してください。',
 		autoCompactedAfter: ({ after, before }) =>
 			`コンテキストを自動圧縮しました: ${formatters.number(before)} → 約${formatters.number(after)}トークン。`,

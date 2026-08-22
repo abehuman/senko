@@ -3,7 +3,15 @@ import type { Formatters } from "../types.js";
 export function createEnglishMessages(formatters: Formatters) {
 	return {
 		apiEmpty: () => "API cannot be empty.",
-		apiKeyRequired: () => "SENKO_API_KEY is required for non-loopback inference endpoints.",
+		apiKeyRequired: () => `SENKO_API_KEY is required for non-loopback inference endpoints.
+
+To connect to an inference API, set the key in your shell and try again:
+  export SENKO_API_KEY='your-api-key'
+
+To test the input UI without inference, start with a loopback URL:
+  SENKO_BASE_URL=http://127.0.0.1:1 pnpm dev
+
+Senko does not load .env files automatically.`,
 		apiUnsupported: () => 'SENKO_API/--api must be "openai-completions" or "openai-responses".',
 		autoCompactedAfter: ({ after, before }: { after: number; before: number }) =>
 			`Context auto-compacted: ${formatters.number(before)} → ~${formatters.number(after)} tokens.`,
