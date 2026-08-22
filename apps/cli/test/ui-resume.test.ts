@@ -83,6 +83,54 @@ describe("resume session picker", () => {
 		expect(lines.every((line) => visibleWidth(line) <= 40)).toBe(true);
 	});
 
+	it("moves the date to a second line when the row does not fit", () => {
+		const picker = new ResumePicker(
+			[
+				session({
+					firstMessage: "一二三四五六七八九十一二三四五",
+					id: "saved",
+					modified: new Date(2026, 7, 22, 12),
+				}),
+			],
+			{ onCancel: () => undefined, onSelect: () => undefined },
+			createI18n("ja"),
+		);
+		const lines = picker.render(40);
+
+		expect(lines).toContain("→ 一二三四五六七八九十一二三四");
+		expect(lines).toContain("  2026-08-22");
+		expect(lines.every((line) => visibleWidth(line) <= 40)).toBe(true);
+	});
+
+	it("keeps the prompt and date on one line when they fit", () => {
+		const picker = new ResumePicker(
+			[session({ firstMessage: "restore this work", id: "saved", modified: new Date(2026, 7, 22, 12) })],
+			{ onCancel: () => undefined, onSelect: () => undefined },
+			createI18n("en"),
+		);
+
+		expect(picker.render(80)).toContain("→ restore this w  2026-08-22");
+	});
+
+	it("scrolls four-session pages in the two-line layout", () => {
+		const sessions = Array.from({ length: 5 }, (_, index) =>
+			session({
+				firstMessage: `${index + 1}一二三四五六七八九十一二三四五`,
+				id: `saved-${index}`,
+				path: `/state/saved-${index}.jsonl`,
+			}),
+		);
+		const picker = new ResumePicker(sessions, { onCancel: () => undefined, onSelect: () => undefined });
+
+		expect(picker.render(40)).toContain("  (1/5)");
+		for (let index = 0; index < 4; index += 1) picker.handleInput("\x1b[B");
+		const lines = picker.render(40);
+
+		expect(lines).toContain("  (5/5)");
+		expect(lines.some((line) => line.startsWith("→ 5一二三四五六七八九十一二三"))).toBe(true);
+		expect(lines.every((line) => visibleWidth(line) <= 40)).toBe(true);
+	});
+
 	it("selects the highlighted session with Enter", () => {
 		const first = session({ id: "first", path: "/state/first.jsonl" });
 		const second = session({ id: "second", path: "/state/second.jsonl" });

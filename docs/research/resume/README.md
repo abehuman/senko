@@ -25,7 +25,8 @@ Implement `/resume` as an interactive-only, idle-only session picker with this c
    the session metadata retains the project directory. This keeps a session's tool working directory unambiguous.
 2. **Use a compact, deterministic picker.** Sort newest first, then display only the first 14 characters of the
    first prompt and the local modified date in `yyyy-mm-dd` format. `Esc` cancels; `Enter` resumes the
-   highlighted session. An empty list should say that no saved sessions exist for this directory.
+   highlighted session. Keep both fields on one line when they fit; move the date to a second line when the terminal
+   is too narrow. An empty list should say that no saved sessions exist for this directory.
 3. **Resume only while idle.** Do not let `/resume` interrupt a model turn or tool call. It opens no prompt and
    creates no transcript entry. If selection is cancelled, the active session and its footer remain unchanged.
 4. **Switch the complete runtime.** Give the TUI an `AgentSessionRuntime`, call
