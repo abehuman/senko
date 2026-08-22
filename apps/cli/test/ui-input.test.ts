@@ -1,7 +1,15 @@
-import { CombinedAutocompleteProvider } from "@earendil-works/pi-tui";
-import { describe, expect, it } from "vitest";
+import { CombinedAutocompleteProvider, type TUI } from "@earendil-works/pi-tui";
+import { describe, expect, it, vi } from "vitest";
 import { createI18n } from "../src/i18n/index.js";
-import { createSlashCommands, interruptAction, slashCommandAction, slashCommands } from "../src/ui/input.js";
+import {
+	createSlashCommands,
+	interruptAction,
+	normalizeCommandEditorInput,
+	SenkoEditor,
+	slashCommandAction,
+	slashCommands,
+} from "../src/ui/input.js";
+import { editorTheme } from "../src/ui/theme.js";
 
 describe("interactive cancellation", () => {
 	it("aborts active work with Escape or Ctrl+C", () => {
@@ -28,6 +36,39 @@ describe("interactive slash commands", () => {
 			cursorCol: 9,
 			lines: ["/compact "],
 		});
+	});
+
+	it("opens and filters slash command completion with a full-width space", async () => {
+		const tui = { requestRender: vi.fn() } as unknown as TUI;
+		const editor = new SenkoEditor(tui, editorTheme);
+		editor.setAutocompleteProvider(new CombinedAutocompleteProvider(slashCommands, process.cwd()));
+
+		editor.handleInput("　ｃ");
+		await vi.waitFor(() => expect(editor.isShowingAutocomplete()).toBe(true));
+		expect(editor.getText()).toBe("/c");
+
+		editor.handleInput("\t");
+		expect(editor.getText()).toBe("/compact ");
+	});
+
+	it("normalizes full-width command input sent with the Kitty keyboard protocol", async () => {
+		const tui = { requestRender: vi.fn() } as unknown as TUI;
+		const editor = new SenkoEditor(tui, editorTheme);
+		editor.setAutocompleteProvider(new CombinedAutocompleteProvider(slashCommands, process.cwd()));
+
+		editor.handleInput("\x1b[12288u");
+		editor.handleInput("\x1b[65347u");
+		await vi.waitFor(() => expect(editor.isShowingAutocomplete()).toBe(true));
+
+		expect(editor.getText()).toBe("/c");
+	});
+
+	it("normalizes full-width command input without changing ordinary prompts", () => {
+		expect(normalizeCommandEditorInput("　ｃ", "")).toBe("/c");
+		expect(normalizeCommandEditorInput("ｃ", "/")).toBe("c");
+		expect(normalizeCommandEditorInput("ｃ", "/compact ")).toBe("ｃ");
+		expect(normalizeCommandEditorInput("ｃ", "日本語")).toBe("ｃ");
+		expect(normalizeCommandEditorInput("　", "日本語")).toBe("　");
 	});
 
 	it("lists every documented command when the user types slash", async () => {
@@ -68,6 +109,7 @@ describe("interactive slash commands", () => {
 	it("runs /compact without accepting custom instructions", () => {
 		expect(slashCommandAction("/compact")).toBe("compact");
 		expect(slashCommandAction("  /compact  ")).toBe("compact");
+		expect(slashCommandAction("　ｃｏｍｐａｃｔ")).toBe("compact");
 		expect(slashCommandAction("/compact focus on tools")).toBe("compact-usage");
 	});
 

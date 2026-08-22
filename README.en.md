@@ -47,8 +47,9 @@ A non-TTY stdin stream automatically selects print mode. New sessions persist by
 ephemeral run. `--continue` selects the newest session for the current working directory, while `--resume` accepts an
 exact session ID or a unique prefix.
 
-Inside the interactive TUI, `/` or the Japanese full-width `；` opens the command menu. Full-width Latin letters also
-filter the menu, while completed command names remain ASCII. `/compact` compacts the current context on demand.
+Inside the interactive TUI, `/` or a full-width space (`　`) at the start of the editor opens the command menu.
+Full-width Latin letters also filter the menu, while completed command names remain ASCII. `/compact` compacts the
+current context on demand.
 `/clear` starts a new session and `/new` is its alias. `/resume` opens the saved-session picker. `/exit` ends Senko and
 `/quit` is its alias. `/model` and `/plan` are not implemented and display guidance without contacting the model.
 

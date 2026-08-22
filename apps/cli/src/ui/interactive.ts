@@ -2,7 +2,6 @@ import type { AgentSession, AgentSessionRuntime } from "@earendil-works/pi-codin
 import {
 	CombinedAutocompleteProvider,
 	Container,
-	Editor,
 	type OverlayHandle,
 	ProcessTerminal,
 	Text,
@@ -13,7 +12,7 @@ import type { RuntimeConfig } from "../config.js";
 import { contentToText, projectEvent } from "../events.js";
 import { defaultI18n, type I18n } from "../i18n/index.js";
 import { compactCommandMessage, compactCurrentSession } from "./compact.js";
-import { createSlashCommands, interruptAction, slashCommandAction } from "./input.js";
+import { createSlashCommands, interruptAction, SenkoEditor, slashCommandAction } from "./input.js";
 import { listResumableSessions, ResumePicker } from "./resume.js";
 import { cyan, dim, editorTheme, green, red } from "./theme.js";
 
@@ -52,7 +51,7 @@ export async function runInteractiveMode(options: {
 	const tui = new TuiMainScreen(terminal);
 	const transcript = new Container();
 	const header = new Text(`${cyan("senko")} ${dim(i18n.t("headerTagline"))}`, 1, 0);
-	const editor = new Editor(tui, editorTheme, { paddingX: 1 });
+	const editor = new SenkoEditor(tui, editorTheme, { paddingX: 1 });
 	editor.setAutocompleteProvider(new CombinedAutocompleteProvider(createSlashCommands(i18n), options.cwd));
 	let activeSession = options.sessionRuntime.session;
 	const sessionLabel = () => activeSession.sessionId.slice(0, 12);

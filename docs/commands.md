@@ -1,7 +1,9 @@
 # Commands run with slash
 
-Typing `/` in the interactive editor opens the command menu. Continue typing to filter it, then use
-Up/Down and Enter (or Tab) to choose a command. For example, `/c` selects `/compact` first.
+Typing `/` or a Japanese full-width space (`　`) at the start of the interactive editor opens the command menu.
+Continue typing to filter it, then use Up/Down and Enter (or Tab) to choose a command. Full-width Latin letters are
+accepted while filtering, so `/c`, `/ｃ`, and `　ｃ` all select `/compact` first. Completion keeps the command name
+in ASCII.
 
 - `/model` ... change model and effort
 - `/compact` ... compact context current session using AI
