@@ -55,9 +55,17 @@ describe("resume session picker", () => {
 		]);
 	});
 
+	it("formats the modified date in the local time zone", () => {
+		const [item] = resumeSessionItems([
+			session({ firstMessage: "local date", modified: new Date(2026, 7, 22, 0, 30) }),
+		]);
+
+		expect(item?.label).toBe("local date  2026-08-22");
+	});
+
 	it("counts non-ASCII prompt characters without splitting them", () => {
 		const [item] = resumeSessionItems([
-			session({ firstMessage: "一二三四五六七八九十一二三四五", modified: new Date("2026-08-22T23:59:59.000Z") }),
+			session({ firstMessage: "一二三四五六七八九十一二三四五", modified: new Date(2026, 7, 22, 23, 59, 59) }),
 		]);
 
 		expect(item?.label).toBe("一二三四五六七八九十一二三四  2026-08-22");

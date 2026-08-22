@@ -9,7 +9,10 @@ function sessionPrompt(session: SessionInfo, i18n: I18n): string {
 }
 
 function sessionDate(session: SessionInfo): string {
-	return session.modified.toISOString().slice(0, 10);
+	const year = String(session.modified.getFullYear()).padStart(4, "0");
+	const month = String(session.modified.getMonth() + 1).padStart(2, "0");
+	const day = String(session.modified.getDate()).padStart(2, "0");
+	return `${year}-${month}-${day}`;
 }
 
 export function resumableSessions(sessions: SessionInfo[], activeSessionId: string): SessionInfo[] {
