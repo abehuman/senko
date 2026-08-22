@@ -64,7 +64,7 @@ export function createJapaneseMessages(formatters: Formatters) {
   -c, --continue              このディレクトリの最新セッションを継続
   -r, --resume <session-id>   IDまたは一意なID接頭辞でセッションを再開
       --no-session            セッションをメモリ内だけに保持
-      --base-url <url>        OpenAI互換APIルート（通常は/v1で終わるURL）
+      --base-url <url>        APIルート（既定値: https://api.senkocode.com/v1）
       --model <id>            モデルID（既定値: fast）
       --api <protocol>        openai-completionsまたはopenai-responses
       --language <locale>     表示言語: en、zh-CN、zh-TW、ja
@@ -72,7 +72,7 @@ export function createJapaneseMessages(formatters: Formatters) {
   -v, --version               バージョンを表示
 
 環境変数:
-  SENKO_BASE_URL              APIルート。Senkoのサービス開始までは必須
+  SENKO_BASE_URL              APIルートの上書き
   SENKO_API_KEY               Bearerキー。ループバック以外では必須
   SENKO_API                   APIプロトコル（既定値: openai-completions）
   SENKO_LANGUAGE              表示言語。未指定の場合はターミナルのロケールから検出
@@ -80,8 +80,6 @@ export function createJapaneseMessages(formatters: Formatters) {
 安全性:
   Senkoはread、write、edit、shellツールをサンドボックスなしで自動実行します。
 `,
-		inferenceEndpointMissing: ({ path }) =>
-			`推論エンドポイントが設定されていません。SENKO_BASE_URL、--base-url、または${path}のbaseUrlを設定してください。`,
 		inferenceFailed: () => "推論リクエストに失敗しました。",
 		interactiveTtyRequired: () =>
 			"対話モードにはTTYが必要です。出力をリダイレクトする場合は--printを使用してください。",

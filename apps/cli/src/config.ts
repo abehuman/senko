@@ -6,6 +6,7 @@ import { defaultI18n, type I18n, type Locale, normalizeLocale } from "./i18n/ind
 import { getConfigPath } from "./paths.js";
 
 const ALLOWED_KEYS = new Set(["api", "baseUrl", "contextWindow", "language", "maxOutputTokens", "model", "reasoning"]);
+const DEFAULT_BASE_URL = "https://api.senkocode.com/v1";
 
 interface FileConfig {
 	api?: SenkoApi;
@@ -153,10 +154,9 @@ export async function resolveConfig(options: ResolveConfigOptions): Promise<Runt
 	const i18n = options.i18n ?? defaultI18n;
 	const configPath = options.configPath ?? getConfigPath(env);
 	const file = await loadConfigFile(configPath, i18n);
-	const rawBaseUrl = nonEmpty(options.args.baseUrl ?? env.SENKO_BASE_URL ?? file.baseUrl, "Base URL", i18n);
-	if (!rawBaseUrl) {
-		throw new SenkoError(i18n.t("inferenceEndpointMissing", { path: configPath }));
-	}
+	const rawBaseUrl =
+		nonEmpty(options.args.baseUrl ?? env.SENKO_BASE_URL ?? file.baseUrl ?? DEFAULT_BASE_URL, "Base URL", i18n) ??
+		DEFAULT_BASE_URL;
 	const { baseUrl, isLoopback } = normalizeBaseUrl(rawBaseUrl, i18n);
 	const model = nonEmpty(options.args.model ?? file.model ?? "fast", "Model", i18n) ?? "fast";
 	const rawApi = nonEmpty(options.args.api ?? env.SENKO_API ?? file.api ?? "openai-completions", "API", i18n);

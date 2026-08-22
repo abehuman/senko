@@ -5,10 +5,12 @@ endpoints.
 
 ```sh
 npm install --global @senkocode/cli
-export SENKO_BASE_URL=https://example.com/v1
 export SENKO_API_KEY=your-key
 senko
 ```
+
+Senko uses `https://api.senkocode.com/v1` by default. Use `--base-url`, `SENKO_BASE_URL`, or the XDG configuration
+file's `baseUrl` field to connect to another OpenAI-compatible API.
 
 Senko runs coding tools automatically without a sandbox or approval prompt. See the repository README for the full
 configuration, resource, and session documentation.

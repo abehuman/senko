@@ -140,7 +140,6 @@
 						<div class="overflow-x-auto p-5 font-mono text-xs leading-7 sm:p-7 sm:text-sm">
 							<div class="text-white/45"># npmからインストール</div>
 							<div class="mt-3 whitespace-nowrap"><span class="mr-3 text-primary">$</span>npm install --global @senkocode/cli</div>
-							<div class="whitespace-nowrap text-white/70"><span class="mr-3 text-primary">$</span>export SENKO_BASE_URL=https://api.example.com/v1</div>
 							<div class="whitespace-nowrap text-white/70"><span class="mr-3 text-primary">$</span>export SENKO_API_KEY=your-key</div>
 							<div class="mt-3 whitespace-nowrap"><span class="mr-3 text-primary">$</span>senko "このリポジトリを要約してください"</div>
 						</div>

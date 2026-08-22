@@ -63,7 +63,7 @@ export function createTraditionalChineseMessages(formatters: Formatters) {
   -c, --continue              繼續此目錄中最新的工作階段
   -r, --resume <session-id>   透過ID或唯一ID前綴繼續工作階段
       --no-session            僅在記憶體中保留工作階段
-      --base-url <url>        OpenAI相容API根網址（通常以/v1結尾）
+      --base-url <url>        API根網址（預設值：https://api.senkocode.com/v1）
       --model <id>            模型ID（預設值：fast）
       --api <protocol>        openai-completions或openai-responses
       --language <locale>     介面語言：en、zh-CN、zh-TW或ja
@@ -71,7 +71,7 @@ export function createTraditionalChineseMessages(formatters: Formatters) {
   -v, --version               顯示版本
 
 環境變數：
-  SENKO_BASE_URL              API根網址；Senko服務上線前必須設定
+  SENKO_BASE_URL              API根網址覆寫
   SENKO_API_KEY               Bearer金鑰；迴路端點以外必須設定
   SENKO_API                   API協定（預設值：openai-completions）
   SENKO_LANGUAGE              介面語言；未設定時從終端機地區設定中偵測
@@ -79,8 +79,6 @@ export function createTraditionalChineseMessages(formatters: Formatters) {
 安全性：
   Senko會在沒有沙箱的情況下自動執行read、write、edit和shell工具。
 `,
-		inferenceEndpointMissing: ({ path }) =>
-			`尚未設定推論端點。請設定SENKO_BASE_URL、傳入--base-url，或在${path}中加入baseUrl。`,
 		inferenceFailed: () => "推論要求失敗。",
 		interactiveTtyRequired: () => "互動模式需要TTY；重新導向輸出時請使用--print。",
 		labelError: () => "錯誤",

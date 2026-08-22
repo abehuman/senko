@@ -1,6 +1,7 @@
 # Senko Inference API Contract
 
-Status: milestone 1 design contract. No API implementation or deployment exists yet.
+Status: milestone 1 design contract. The CLI defaults to `https://api.senkocode.com/v1`; implementing and deploying
+that service remain separate milestones.
 
 ## Goals
 

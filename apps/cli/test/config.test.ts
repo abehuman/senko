@@ -78,6 +78,20 @@ describe("resolveConfig", () => {
 		expect(config.model).toBe("fast");
 	});
 
+	it("uses the Senko API root by default", async () => {
+		const config = await resolveConfig({
+			args: {},
+			configPath: join(await temporaryDirectory(), "missing.json"),
+			env: { SENKO_API_KEY: "test-secret" },
+		});
+
+		expect(config).toMatchObject({
+			apiKey: "test-secret",
+			baseUrl: "https://api.senkocode.com/v1",
+			isLoopback: false,
+		});
+	});
+
 	it("validates configured languages with localized errors", async () => {
 		const directory = await temporaryDirectory();
 		const configPath = join(directory, "config.json");
@@ -113,10 +127,10 @@ describe("resolveConfig", () => {
 		expect(normalizeBaseUrl("http://dev.localhost:9000/v1").isLoopback).toBe(true);
 	});
 
-	it("requires an environment key for remote endpoints", async () => {
+	it("requires an environment key for the default remote endpoint", async () => {
 		await expect(
 			resolveConfig({
-				args: { baseUrl: "https://remote.example/v1" },
+				args: {},
 				configPath: join(await temporaryDirectory(), "missing.json"),
 				env: {},
 			}),

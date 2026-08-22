@@ -70,7 +70,7 @@ Options:
   -c, --continue              Continue the newest session for this directory
   -r, --resume <session-id>   Resume a session by ID or unique ID prefix
       --no-session            Keep the session in memory only
-      --base-url <url>        OpenAI-compatible API root (normally ends in /v1)
+      --base-url <url>        API root (default: https://api.senkocode.com/v1)
       --model <id>            Model ID (default: fast)
       --api <protocol>        openai-completions or openai-responses
       --language <locale>     Interface language: en, zh-CN, zh-TW, or ja
@@ -78,7 +78,7 @@ Options:
   -v, --version               Show version
 
 Environment:
-  SENKO_BASE_URL              API root; required until Senko's service launches
+  SENKO_BASE_URL              API root override
   SENKO_API_KEY               Bearer key; required except for loopback endpoints
   SENKO_API                   API protocol (default: openai-completions)
   SENKO_LANGUAGE              Interface language; otherwise detected from the terminal locale
@@ -86,8 +86,6 @@ Environment:
 Safety:
   Senko runs read, write, edit, and shell tools automatically without a sandbox.
 `,
-		inferenceEndpointMissing: ({ path }: { path: string }) =>
-			`No inference endpoint is configured. Set SENKO_BASE_URL, pass --base-url, or add baseUrl to ${path}.`,
 		inferenceFailed: () => "Inference request failed.",
 		interactiveTtyRequired: () => "Interactive mode requires a TTY; use --print for redirected output.",
 		labelError: () => "error",

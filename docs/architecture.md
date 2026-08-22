@@ -4,7 +4,8 @@
 
 Milestone 1 is a pnpm workspace containing the published CLI package at `apps/cli` and the static product
 website at `apps/website`. The website is independent of the CLI runtime and does not expose an inference endpoint.
-A future Cloudflare Worker may be introduced as `apps/api`, but the CLI does not depend on unpublished server code.
+The CLI defaults to `https://api.senkocode.com/v1`, while implementation of that service remains a separate future
+milestone under `apps/api`.
 
 ## Runtime flow
 
@@ -14,8 +15,9 @@ A future Cloudflare Worker may be introduced as `apps/api`, but the CLI does not
    bootstrap never prevents help output when configuration is invalid.
 2. Parse CLI flags with localized usage errors and decide between help, version, session listing, print mode, and
    interactive mode.
-3. Resolve non-secret settings from flags, documented `SENKO_*` environment variables where supported, and the XDG
-   configuration file. Model selection specifically uses `--model`, then the configuration file, then `fast`.
+3. Resolve non-secret settings from flags, documented `SENKO_*` environment variables where supported, the XDG
+   configuration file, and built-in defaults. The API root defaults to `https://api.senkocode.com/v1`; model
+   selection specifically uses `--model`, then the configuration file, then `fast`.
 4. Load Senko's built-in base instructions from its bundled Markdown asset and discover portable `AGENTS.md` and
    `.agents/skills` resources without loading vendor-specific directories.
 5. Register one in-memory `senko` model provider with Pi's `ModelRuntime`.

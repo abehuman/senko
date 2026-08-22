@@ -81,7 +81,7 @@ currently display `This feature is not built yet.` without contacting the model.
 
 Senko resolves supported settings from CLI flags, then their documented `SENKO_*` environment variables, then the
 XDG configuration file. Model selection uses `--model`, then the configuration file's `model` field, then the `fast`
-default; it has no environment-variable override. There is no compiled production endpoint yet.
+default; it has no environment-variable override. The API root defaults to `https://api.senkocode.com/v1`.
 
 The interface supports English (`en`), Simplified Chinese (`zh-CN`), Traditional Chinese (`zh-TW`), and Japanese
 (`ja`). Set it with `--language`, `SENKO_LANGUAGE`, or the `language` configuration field. When none is set, Senko
@@ -91,7 +91,6 @@ explicit language is set. Locale aliases such as `ja_JP.UTF-8`, `zh_CN`, `zh_Han
 Commands, option names, environment variables, and raw tool output remain unchanged across languages.
 
 ```sh
-export SENKO_BASE_URL=https://example.com/v1
 export SENKO_API_KEY=your-key
 export SENKO_API=openai-completions
 export SENKO_LANGUAGE=ja
@@ -105,7 +104,6 @@ The non-secret configuration file is `$XDG_CONFIG_HOME/senko/config.json`, or
 ```json
 {
   "language": "ja",
-  "baseUrl": "https://example.com/v1",
   "api": "openai-completions",
   "model": "fast",
   "contextWindow": 32768,
@@ -115,7 +113,8 @@ The non-secret configuration file is `$XDG_CONFIG_HOME/senko/config.json`, or
 ```
 
 API keys are accepted only through `SENKO_API_KEY`; they are never read from the configuration file or written to
-session files. Loopback endpoints can run without a user-supplied key. `baseUrl` is the complete API root: Senko
+session files. Loopback endpoints can run without a user-supplied key. Override the default API root with
+`--base-url`, `SENKO_BASE_URL`, or the configuration file's `baseUrl` field. `baseUrl` is the complete API root: Senko
 removes one trailing slash but never appends `/v1`.
 
 `maxOutputTokens` must be at least 2, and `contextWindow` must be greater than `maxOutputTokens` plus the 4,096-token
