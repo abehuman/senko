@@ -15,7 +15,7 @@ import { compactCommandMessage, compactCurrentSession } from "./compact.js";
 import { idleFooter } from "./footer.js";
 import { createSlashCommands, interruptAction, SenkoEditor, slashCommandAction } from "./input.js";
 import { listResumableSessions, ResumePicker } from "./resume.js";
-import { cyan, dim, editorTheme, green, red } from "./theme.js";
+import { dim, editorTheme, green, lime, red } from "./theme.js";
 
 type SessionMessage = AgentSession["messages"][number];
 
@@ -31,7 +31,7 @@ function renderHistory(transcript: Container, messages: SessionMessage[], i18n: 
 		const text = messageText(message);
 		if (!text) continue;
 		if (message.role === "user") {
-			transcript.addChild(new Text(`${cyan(i18n.t("labelYou"))}\n${text}`, 1, 0));
+			transcript.addChild(new Text(`${lime(i18n.t("labelYou"))}\n${text}`, 1, 0));
 		} else if (message.role === "assistant") {
 			transcript.addChild(new Text(`${green("Senko")}\n${text}`, 1, 0));
 		} else if (message.role === "toolResult") {
@@ -51,7 +51,7 @@ export async function runInteractiveMode(options: {
 	const terminal = new ProcessTerminal();
 	const tui = new TuiMainScreen(terminal);
 	const transcript = new Container();
-	const header = new Text(`${cyan("Senko")} ${dim(i18n.t("headerTagline"))}`, 1, 0);
+	const header = new Text(`${lime("Senko")} ${dim(i18n.t("headerTagline"))}`, 1, 0);
 	const editor = new SenkoEditor(tui, editorTheme, { paddingX: 1 });
 	editor.setAutocompleteProvider(new CombinedAutocompleteProvider(createSlashCommands(i18n), options.cwd));
 	let activeSession = options.sessionRuntime.session;
@@ -134,14 +134,14 @@ export async function runInteractiveMode(options: {
 						currentThinking.setText(dim(`${i18n.t("labelThinking")}\n${currentThinkingText}`));
 						break;
 					case "tool_start": {
-						const component = new Text(cyan(`→ ${projected.label}`), 1, 0);
+						const component = new Text(lime(`→ ${projected.label}`), 1, 0);
 						tools.set(projected.id, { component, label: projected.label });
 						transcript.addChild(component);
 						break;
 					}
 					case "tool_update": {
 						const tool = tools.get(projected.id);
-						if (tool && projected.text) tool.component.setText(`${cyan(`→ ${tool.label}`)}\n${dim(projected.text)}`);
+						if (tool && projected.text) tool.component.setText(`${lime(`→ ${tool.label}`)}\n${dim(projected.text)}`);
 						break;
 					}
 					case "tool_end": {
@@ -359,7 +359,7 @@ export async function runInteractiveMode(options: {
 			}
 			editor.addToHistory(raw);
 			editor.setText("");
-			transcript.addChild(new Text(`${cyan(i18n.t("labelYou"))}\n${raw}`, 1, 0));
+			transcript.addChild(new Text(`${lime(i18n.t("labelYou"))}\n${raw}`, 1, 0));
 			busy = true;
 			activePromptCancelled = false;
 			editor.disableSubmit = true;

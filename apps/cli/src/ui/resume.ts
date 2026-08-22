@@ -1,7 +1,7 @@
 import { type SessionInfo, SessionManager } from "@earendil-works/pi-coding-agent";
 import { type Component, type SelectItem, SelectList } from "@earendil-works/pi-tui";
 import { defaultI18n, type I18n } from "../i18n/index.js";
-import { cyan, dim, editorTheme } from "./theme.js";
+import { dim, editorTheme, lime } from "./theme.js";
 
 function sessionLabel(session: SessionInfo, i18n: I18n): string {
 	return session.name || session.firstMessage.replace(/\s+/g, " ").trim() || i18n.t("sessionEmpty");
@@ -64,6 +64,6 @@ export class ResumePicker implements Component {
 
 	render(width: number): string[] {
 		const i18n = this.i18n;
-		return [cyan(i18n.t("resumeTitle")), dim(i18n.t("resumeHint")), "", ...this.selectList.render(width)];
+		return [lime(i18n.t("resumeTitle")), dim(i18n.t("resumeHint")), "", ...this.selectList.render(width)];
 	}
 }
