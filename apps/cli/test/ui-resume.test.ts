@@ -32,7 +32,7 @@ describe("resume session picker", () => {
 		expect(sessions.map((saved) => saved.id)).toEqual(["newer", "older"]);
 	});
 
-	it("shows compact metadata for every saved session", () => {
+	it("shows only the first 14 prompt characters and modified date", () => {
 		const i18n = createI18n("en");
 		const items = resumeSessionItems(
 			[
@@ -40,6 +40,7 @@ describe("resume session picker", () => {
 					firstMessage: "restore this work",
 					id: "1234567890abcdef",
 					messageCount: 7,
+					name: "saved session name",
 					modified: new Date("2026-08-21T04:05:06.000Z"),
 				}),
 			],
@@ -47,13 +48,19 @@ describe("resume session picker", () => {
 		);
 
 		expect(items).toEqual([
-			expect.objectContaining({
-				description: expect.stringContaining(
-					`${i18n.dateTime(new Date("2026-08-21T04:05:06.000Z"))} · 7 messages · restore this work`,
-				),
-				label: "1234567890ab",
-			}),
+			{
+				label: "restore this w  2026-08-21",
+				value: "/state/session.jsonl",
+			},
 		]);
+	});
+
+	it("counts non-ASCII prompt characters without splitting them", () => {
+		const [item] = resumeSessionItems([
+			session({ firstMessage: "一二三四五六七八九十一二三四五", modified: new Date("2026-08-22T23:59:59.000Z") }),
+		]);
+
+		expect(item?.label).toBe("一二三四五六七八九十一二三四  2026-08-22");
 	});
 
 	it("renders localized CJK metadata within the terminal width", () => {
