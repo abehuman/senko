@@ -116,4 +116,9 @@ describe("translations", () => {
 		);
 		expect(japanese.dateTime(new Date("2026-08-21T04:05:06.000Z"))).toContain("2026");
 	});
+
+	it("keeps session identifiers out of busy footers", () => {
+		expect(createI18n("en").t("footerWorking", { model: "fast" })).toBe("working · Esc/Ctrl+C abort · fast");
+		expect(createI18n("ja").t("footerCompacting", { model: "fast" })).toBe("圧縮中 · Esc/Ctrl+Cで中止 · fast");
+	});
 });

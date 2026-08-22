@@ -58,8 +58,8 @@ Senkoは.envファイルを自動では読み込みません。`,
 		diagnosticError: () => "エラー",
 		diagnosticWarning: () => "警告",
 		featureNotBuilt: () => "この機能はまだ実装されていません。",
-		footerCompacting: ({ model, session }) => `圧縮中 · Esc/Ctrl+Cで中止 · ${model} · ${session}`,
-		footerWorking: ({ model, session }) => `作業中 · Esc/Ctrl+Cで中止 · ${model} · ${session}`,
+		footerCompacting: ({ model }) => `圧縮中 · Esc/Ctrl+Cで中止 · ${model}`,
+		footerWorking: ({ model }) => `作業中 · Esc/Ctrl+Cで中止 · ${model}`,
 		headerTagline: () => "高速コーディングエージェント",
 		helpText: () => `Senko — 高速ターミナルコーディングエージェント
 

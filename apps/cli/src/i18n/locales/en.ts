@@ -62,10 +62,8 @@ Senko does not load .env files automatically.`,
 		diagnosticError: () => "error",
 		diagnosticWarning: () => "warning",
 		featureNotBuilt: () => "This feature is not built yet.",
-		footerCompacting: ({ model, session }: { model: string; session: string }) =>
-			`compacting · Esc/Ctrl+C abort · ${model} · ${session}`,
-		footerWorking: ({ model, session }: { model: string; session: string }) =>
-			`working · Esc/Ctrl+C abort · ${model} · ${session}`,
+		footerCompacting: ({ model }: { model: string }) => `compacting · Esc/Ctrl+C abort · ${model}`,
+		footerWorking: ({ model }: { model: string }) => `working · Esc/Ctrl+C abort · ${model}`,
 		headerTagline: () => "fast coding agent",
 		helpText: () => `Senko — fast terminal coding agent
 

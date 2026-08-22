@@ -12,6 +12,7 @@ import type { RuntimeConfig } from "../config.js";
 import { contentToText, projectEvent } from "../events.js";
 import { defaultI18n, type I18n } from "../i18n/index.js";
 import { compactCommandMessage, compactCurrentSession } from "./compact.js";
+import { idleFooter } from "./footer.js";
 import { createSlashCommands, interruptAction, SenkoEditor, slashCommandAction } from "./input.js";
 import { listResumableSessions, ResumePicker } from "./resume.js";
 import { cyan, dim, editorTheme, green, red } from "./theme.js";
@@ -54,10 +55,9 @@ export async function runInteractiveMode(options: {
 	const editor = new SenkoEditor(tui, editorTheme, { paddingX: 1 });
 	editor.setAutocompleteProvider(new CombinedAutocompleteProvider(createSlashCommands(i18n), options.cwd));
 	let activeSession = options.sessionRuntime.session;
-	const sessionLabel = () => activeSession.sessionId.slice(0, 12);
-	const idleFooter = () => `${options.config.model} · ${options.config.api} · ${options.cwd} · ${sessionLabel()}`;
-	const workingFooter = () => i18n.t("footerWorking", { model: options.config.model, session: sessionLabel() });
-	const footer = new Text(dim(idleFooter()), 1, 0);
+	const idleFooterText = () => idleFooter(options.config.model, options.cwd);
+	const workingFooter = () => i18n.t("footerWorking", { model: options.config.model });
+	const footer = new Text(dim(idleFooterText()), 1, 0);
 	tui.addChild(header);
 	tui.addChild(transcript);
 	renderHistory(transcript, activeSession.messages, i18n);
@@ -83,7 +83,7 @@ export async function runInteractiveMode(options: {
 			case "auto_compaction_start":
 				currentAutoCompaction = new Text(dim(projected.text), 1, 0);
 				transcript.addChild(currentAutoCompaction);
-				footer.setText(dim(i18n.t("footerCompacting", { model: options.config.model, session: sessionLabel() })));
+				footer.setText(dim(i18n.t("footerCompacting", { model: options.config.model })));
 				break;
 			case "auto_compaction_end": {
 				const component = currentAutoCompaction ?? new Text("", 1, 0);
@@ -96,7 +96,7 @@ export async function runInteractiveMode(options: {
 							: red(projected.text),
 				);
 				currentAutoCompaction = undefined;
-				footer.setText(dim(busy ? workingFooter() : idleFooter()));
+				footer.setText(dim(busy ? workingFooter() : idleFooterText()));
 				break;
 			}
 		}
@@ -174,7 +174,7 @@ export async function runInteractiveMode(options: {
 		transcript.clear();
 		renderHistory(transcript, activeSession.messages, i18n);
 		subscribeToSession();
-		footer.setText(dim(idleFooter()));
+		footer.setText(dim(idleFooterText()));
 		tui.requestRender();
 	};
 
@@ -242,7 +242,7 @@ export async function runInteractiveMode(options: {
 					if (!closed) {
 						busy = false;
 						editor.disableSubmit = false;
-						footer.setText(dim(idleFooter()));
+						footer.setText(dim(idleFooterText()));
 						tui.requestRender();
 					}
 				}
@@ -300,7 +300,7 @@ export async function runInteractiveMode(options: {
 							if (!closed) {
 								resumeSwitching = false;
 								editor.disableSubmit = false;
-								footer.setText(dim(idleFooter()));
+								footer.setText(dim(idleFooterText()));
 								tui.requestRender();
 							}
 						}
@@ -333,7 +333,7 @@ export async function runInteractiveMode(options: {
 				transcript.addChild(status);
 				busy = true;
 				editor.disableSubmit = true;
-				footer.setText(dim(i18n.t("footerCompacting", { model: options.config.model, session: sessionLabel() })));
+				footer.setText(dim(i18n.t("footerCompacting", { model: options.config.model })));
 				tui.requestRender();
 				const result = await compactCurrentSession(activeSession);
 				const message = compactCommandMessage(result, i18n);
@@ -346,7 +346,7 @@ export async function runInteractiveMode(options: {
 				);
 				busy = false;
 				editor.disableSubmit = false;
-				footer.setText(dim(idleFooter()));
+				footer.setText(dim(idleFooterText()));
 				tui.requestRender();
 				return;
 			}
@@ -380,7 +380,7 @@ export async function runInteractiveMode(options: {
 			} finally {
 				busy = false;
 				editor.disableSubmit = false;
-				footer.setText(dim(idleFooter()));
+				footer.setText(dim(idleFooterText()));
 				tui.requestRender();
 			}
 		};
