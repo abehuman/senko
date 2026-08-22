@@ -2,7 +2,7 @@
 	"name": "senko-workspace",
 	"version": "0.1.0",
 	"private": true,
-	"description": "The Senko fast terminal coding agent workspace",
+	"description": "Provider-flexible AI coding agent for Japanese development teams",
 	"license": "MIT",
 	"repository": {
 		"type": "git",

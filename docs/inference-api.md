@@ -4,9 +4,14 @@ Status: milestone 1 design contract. No API implementation or deployment exists 
 
 ## Goals
 
-The future Senko inference API is a Cloudflare Worker optimized for a small, curated catalog of low-latency coding
-models. The first implementation has one server-configured upstream provider and a deterministic fake upstream for
-tests. Client requests cannot choose an arbitrary upstream provider.
+The future Senko inference API is a Cloudflare Worker optimized for a small, curated catalog focused primarily on
+open-weight coding models. Model selection and routing prioritize cost, latency, and operational stability instead of
+catalog size. The product direction includes multiple managed inference routes so that one upstream outage or period
+of congestion does not stop a team's work.
+
+The first implementation may still have one server-configured upstream provider and a deterministic fake upstream for
+tests. Client requests cannot choose an arbitrary upstream provider; Senko owns the curated catalog and managed
+routing policy.
 
 The service exposes OpenAI-compatible streaming interfaces so Senko and other standard clients can use it without a
 proprietary transport.
@@ -68,5 +73,7 @@ prompt content, tool arguments, tool results, and generated text by default.
 
 ## Deferred work
 
-This contract does not define billing, account management, API-key issuance, multi-provider routing, user-supplied
-upstream keys, dashboards, or deployment. Those require separate milestones and explicit operational decisions.
+This contract does not yet define billing, account management, API-key issuance, multi-provider routing,
+per-member team plan assignment, user-supplied upstream keys, dashboards, or deployment. Those are part of the wider
+product direction where noted in [the product positioning](positioning.md), but require separate milestones and
+explicit operational decisions.

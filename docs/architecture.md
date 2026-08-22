@@ -2,7 +2,7 @@
 
 ## Repository boundary
 
-Milestone 1 is a pnpm workspace containing the published-artifact candidate at `apps/cli` and the static product
+Milestone 1 is a pnpm workspace containing the published CLI package at `apps/cli` and the static product
 website at `apps/website`. The website is independent of the CLI runtime and does not expose an inference endpoint.
 A future Cloudflare Worker may be introduced as `apps/api`, but the CLI does not depend on unpublished server code.
 

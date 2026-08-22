@@ -1,7 +1,13 @@
 # Senko
 
-Senko is a fast AI coding agent for macOS and Linux terminals. Its first milestone embeds the
-[Pi coding-agent SDK](https://github.com/earendil-works/pi) behind a small Senko-owned CLI and user interface.
+Senko is a provider-flexible AI coding agent for development teams at Japanese companies that already use Claude Code
+or Codex. It is designed as an additional execution path when usage limits, cost, or a single provider's outage would
+otherwise stop AI-assisted development.
+
+The current milestone is a free, Japanese-capable CLI for macOS and Linux. It embeds the
+[Pi coding-agent SDK](https://github.com/earendil-works/pi) behind a small Senko-owned interface and can connect to
+configurable OpenAI-compatible endpoints. A curated managed model service and per-member team plans are planned, but
+are not available yet. See [the product positioning](docs/positioning.md) for the target customer and product pillars.
 
 > [!WARNING]
 > Senko currently runs read, write, edit, and shell tools automatically with the same host permissions as the
@@ -130,5 +136,10 @@ See [the architecture](docs/architecture.md), [benchmark definitions](benchmarks
 
 ## Distribution
 
-The CLI package is prepared as `@senkocode/cli` version `0.1.0`, with the executable name `senko`. It has not been
-published from this repository yet. Follow the [release guide](docs/releasing.md) to verify and publish it.
+The CLI is published on npm as `@senkocode/cli` version `0.1.0`, with the executable name `senko`:
+
+```sh
+npm install --global @senkocode/cli
+```
+
+Follow the [release guide](docs/releasing.md) to verify and publish future versions.

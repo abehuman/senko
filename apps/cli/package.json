@@ -1,7 +1,7 @@
 {
 	"name": "@senkocode/cli",
 	"version": "0.1.0",
-	"description": "Fast AI coding agent for macOS and Linux terminals",
+	"description": "Provider-flexible AI coding agent with a Japanese terminal interface",
 	"bugs": {
 		"url": "https://github.com/abehuman/senko/issues"
 	},

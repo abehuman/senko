@@ -11,6 +11,7 @@ Update this doc if something is wrong/outdated.
 - Main documentation files are:
   - `README.md`: product overview, CLI usage, configuration, sessions, and resources.
   - `apps/cli/README.md`: published CLI package overview.
+  - `docs/positioning.md`: target customer, customer problems, product pillars, and messaging boundaries.
   - `docs/architecture.md`: runtime boundaries, storage, and performance policy.
   - `docs/commands.md`: slash-command behavior, implementation status, and research links.
   - `docs/inference-api.md`: future managed inference service contract.

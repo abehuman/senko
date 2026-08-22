@@ -1,6 +1,7 @@
 # `@senkocode/cli`
 
-The Senko terminal coding agent.
+The provider-flexible Senko terminal coding agent, with a Japanese interface and configurable OpenAI-compatible
+endpoints.
 
 ```sh
 npm install --global @senkocode/cli
@@ -11,6 +12,9 @@ senko
 
 Senko runs coding tools automatically without a sandbox or approval prompt. See the repository README for the full
 configuration, resource, and session documentation.
+
+The CLI itself is free to use and does not require Senko's planned managed model service. API usage may still be
+charged by whichever external provider you configure.
 
 Long sessions automatically compact before a pending prompt would cross the configured model context limit, with the
 maximum response and Pi's 4,096-token request safety margin reserved. Progress stays in the TUI or stderr, so
