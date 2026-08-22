@@ -33,7 +33,7 @@ function renderHistory(transcript: Container, messages: SessionMessage[], i18n: 
 		if (message.role === "user") {
 			transcript.addChild(new Text(`${cyan(i18n.t("labelYou"))}\n${text}`, 1, 0));
 		} else if (message.role === "assistant") {
-			transcript.addChild(new Text(`${green("senko")}\n${text}`, 1, 0));
+			transcript.addChild(new Text(`${green("Senko")}\n${text}`, 1, 0));
 		} else if (message.role === "toolResult") {
 			transcript.addChild(new Text(dim(`${i18n.t("labelTool")}\n${text}`), 1, 0));
 		}
@@ -51,7 +51,7 @@ export async function runInteractiveMode(options: {
 	const terminal = new ProcessTerminal();
 	const tui = new TuiMainScreen(terminal);
 	const transcript = new Container();
-	const header = new Text(`${cyan("senko")} ${dim(i18n.t("headerTagline"))}`, 1, 0);
+	const header = new Text(`${cyan("Senko")} ${dim(i18n.t("headerTagline"))}`, 1, 0);
 	const editor = new SenkoEditor(tui, editorTheme, { paddingX: 1 });
 	editor.setAutocompleteProvider(new CombinedAutocompleteProvider(createSlashCommands(i18n), options.cwd));
 	let activeSession = options.sessionRuntime.session;
@@ -116,14 +116,14 @@ export async function runInteractiveMode(options: {
 						currentAssistantText = "";
 						currentThinkingText = "";
 						currentThinking = undefined;
-						currentAssistant = new Text(`${green("senko")}\n`, 1, 0);
+						currentAssistant = new Text(`${green("Senko")}\n`, 1, 0);
 						transcript.addChild(currentAssistant);
 						break;
 					case "text_delta":
 						currentAssistantText += projected.text;
-						currentAssistant ??= new Text(`${green("senko")}\n`, 1, 0);
+						currentAssistant ??= new Text(`${green("Senko")}\n`, 1, 0);
 						if (!transcript.children.includes(currentAssistant)) transcript.addChild(currentAssistant);
-						currentAssistant.setText(`${green("senko")}\n${currentAssistantText}`);
+						currentAssistant.setText(`${green("Senko")}\n${currentAssistantText}`);
 						break;
 					case "thinking_delta":
 						currentThinkingText += projected.text;
@@ -353,7 +353,7 @@ export async function runInteractiveMode(options: {
 			if (commandAction === "not-built") {
 				editor.addToHistory(raw);
 				editor.setText("");
-				transcript.addChild(new Text(`${green("senko")}\n${i18n.t("featureNotBuilt")}`, 1, 0));
+				transcript.addChild(new Text(`${green("Senko")}\n${i18n.t("featureNotBuilt")}`, 1, 0));
 				tui.requestRender();
 				return;
 			}
