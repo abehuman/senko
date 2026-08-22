@@ -40,7 +40,7 @@ describe("resolveConfig", () => {
 			args: {
 				api: "openai-responses",
 				baseUrl: "https://flag.example/v1/",
-				language: "zh-CN",
+				language: "ja",
 				model: "flag-model",
 			},
 			configPath,
@@ -48,7 +48,7 @@ describe("resolveConfig", () => {
 				SENKO_API: "openai-completions",
 				SENKO_API_KEY: "test-secret",
 				SENKO_BASE_URL: "https://env.example/v1",
-				SENKO_LANGUAGE: "zh-TW",
+				SENKO_LANGUAGE: "en",
 			},
 		});
 
@@ -57,7 +57,7 @@ describe("resolveConfig", () => {
 			apiKey: "test-secret",
 			baseUrl: "https://flag.example/v1",
 			contextWindow: 65_536,
-			language: "zh-CN",
+			language: "ja",
 			maxOutputTokens: 8_192,
 			model: "flag-model",
 			reasoning: true,

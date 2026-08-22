@@ -62,8 +62,6 @@ afterEach(async () => {
 describe.sequential("CLI integration", () => {
 	it.each([
 		["en", "Usage:"],
-		["zh-CN", "用法："],
-		["zh-TW", "用法："],
 		["ja", "使い方:"],
 	])("renders --help in %s", async (locale, marker) => {
 		const root = await temporaryDirectory("senko-help-locale-");

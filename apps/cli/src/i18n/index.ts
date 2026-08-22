@@ -2,8 +2,6 @@ import { readFile } from "node:fs/promises";
 import { getConfigPath } from "../paths.js";
 import { createEnglishMessages, type Messages } from "./locales/en.js";
 import { createJapaneseMessages } from "./locales/ja.js";
-import { createSimplifiedChineseMessages } from "./locales/zh-cn.js";
-import { createTraditionalChineseMessages } from "./locales/zh-tw.js";
 import { type Formatters, type Locale, SUPPORTED_LOCALES } from "./types.js";
 
 export { type Locale, SUPPORTED_LOCALES } from "./types.js";
@@ -28,10 +26,6 @@ export function normalizeLocale(value: string | undefined): Locale | undefined {
 	if (normalized === "c" || normalized === "posix") return "en";
 	if (normalized === "en" || normalized.startsWith("en-")) return "en";
 	if (normalized === "ja" || normalized.startsWith("ja-")) return "ja";
-	if (normalized === "zh" || normalized.startsWith("zh-")) {
-		if (/^zh-(tw|hk|mo|hant)(-|$)/.test(normalized)) return "zh-TW";
-		return "zh-CN";
-	}
 	return undefined;
 }
 
@@ -60,14 +54,7 @@ function createFormatters(locale: Locale): Formatters {
 
 export function createI18n(locale: Locale): I18n {
 	const formatters = createFormatters(locale);
-	const messages: Messages =
-		locale === "ja"
-			? createJapaneseMessages(formatters)
-			: locale === "zh-CN"
-				? createSimplifiedChineseMessages(formatters)
-				: locale === "zh-TW"
-					? createTraditionalChineseMessages(formatters)
-					: createEnglishMessages(formatters);
+	const messages: Messages = locale === "ja" ? createJapaneseMessages(formatters) : createEnglishMessages(formatters);
 	return {
 		...formatters,
 		locale,

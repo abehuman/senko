@@ -25,8 +25,10 @@ pnpm package
 npm whoami
 ```
 
-Inspect the generated `apps/cli/senkocode-cli-<version>.tgz` before publishing. The packed-install smoke test verifies
-the executable permissions, help and version output, print mode, and a local mock inference request.
+Inspect the generated `apps/cli/senkocode-cli-<version>.tgz` before publishing. The CLI build cleans `apps/cli/dist`
+before compiling so deleted modules cannot remain in the tarball. The packed-install smoke test verifies the executable
+permissions, help and version output, the `en` and `ja` locale bundle boundary, print mode, and a local mock inference
+request.
 
 ## Publish
 

@@ -67,7 +67,7 @@ export function createJapaneseMessages(formatters: Formatters) {
       --base-url <url>        APIルート（既定値: https://api.senkocode.com/v1）
       --model <id>            モデルID（既定値: fast）
       --api <protocol>        openai-completionsまたはopenai-responses
-      --language <locale>     表示言語: en、zh-CN、zh-TW、ja
+      --language <locale>     表示言語: jaまたはen
   -h, --help                  ヘルプを表示
   -v, --version               バージョンを表示
 
@@ -88,8 +88,7 @@ export function createJapaneseMessages(formatters: Formatters) {
 		labelThinkingActive: () => "思考中…",
 		labelTool: () => "ツール",
 		labelYou: () => "あなた",
-		languageUnsupported: ({ value }) =>
-			`未対応の言語「${value}」です。en、zh-CN、zh-TW、jaのいずれかを指定してください。`,
+		languageUnsupported: ({ value }) => `未対応の言語「${value}」です。jaまたはenを指定してください。`,
 		listSessionsFailed: ({ message }) => `保存済みセッションの一覧を取得できませんでした: ${message}`,
 		maxOutputTokensMinimum: ({ path }) => `${path}のmaxOutputTokensは2以上にしてください。`,
 		modelRegistrationFailed: ({ model }) => `モデル「${model}」を登録できませんでした。`,

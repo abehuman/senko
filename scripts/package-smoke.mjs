@@ -113,6 +113,13 @@ try {
 	if (version.stdout.trim() !== packageJson.version) {
 		throw new Error(`Version output ${version.stdout.trim()} did not match package ${packageJson.version}.`);
 	}
+	const localeFiles = await readdir(
+		join(installDirectory, "node_modules", "@senkocode", "cli", "dist", "i18n", "locales"),
+	);
+	const unexpectedLocaleFiles = localeFiles.filter((entry) => !/^(en|ja)\.(d\.ts|js)(\.map)?$/.test(entry));
+	if (unexpectedLocaleFiles.length > 0) {
+		throw new Error(`Installed package contains unexpected locale files: ${unexpectedLocaleFiles.join(", ")}`);
+	}
 
 	mockServer = await startMockServer();
 	const smokeEnvironment = { ...process.env };

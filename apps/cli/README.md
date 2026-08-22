@@ -1,29 +1,27 @@
 # `@senkocode/cli`
 
-The provider-flexible Senko terminal coding agent, with a Japanese interface and configurable OpenAI-compatible
-endpoints.
+日本語インターフェースと設定可能なOpenAI互換エンドポイントに対応した、Senkoターミナルコーディングエージェントです。
 
 ```sh
 npm install --global @senkocode/cli
+export SENKO_BASE_URL=https://api.example.com/v1
 export SENKO_API_KEY=your-key
-senko
+senko --model your-model
 ```
 
-Senko uses `https://api.senkocode.com/v1` by default. Use `--base-url`, `SENKO_BASE_URL`, or the XDG configuration
-file's `baseUrl` field to connect to another OpenAI-compatible API.
+Senko APIはまだ利用できません。Senkoは`https://api.senkocode.com/v1`を既定のAPIルートとして使用しますが、現時点では
+`--base-url`、`SENKO_BASE_URL`、またはXDG設定ファイルの`baseUrl`で利用するOpenAI互換APIを指定してください。
 
-Senko runs coding tools automatically without a sandbox or approval prompt. See the repository README for the full
-configuration, resource, and session documentation.
+Senkoは、サンドボックスや承認画面を介さずにコーディングツールを自動実行します。設定、リソース、セッションの
+詳細は[リポジトリのREADME](https://github.com/abehuman/senko#readme)を参照してください。
 
-The CLI itself is free to use and does not require Senko's planned managed model service. API usage may still be
-charged by whichever external provider you configure.
+CLI自体は無料です。外部APIの利用料金は各プロバイダーの契約に従います。
 
-Long sessions automatically compact before a pending prompt would cross the configured model context limit, with the
-maximum response and Pi's 4,096-token request safety margin reserved. Progress stays in the TUI or stderr, so
-print-mode assistant stdout remains script-friendly. In the interactive TUI, run `/compact` to compact on demand; the
-command does not accept additional instructions. `Escape` or `Ctrl+C` cancels active compaction.
+長いセッションはコンテキスト上限へ達する前に自動圧縮されます。進行状況はTUIまたはstderrへ出力するため、
+printモードのアシスタント標準出力には混ざりません。対話型TUIのコマンドメニューは`/`または日本語入力中の
+全角`；`で開け、全角英字でも候補を絞り込めます。確定後のコマンド名は半角英字です。`/compact`で手動圧縮でき、
+圧縮中に`Escape`か`Ctrl+C`を押すとキャンセルできます。
 
-Senko's interface supports `en`, `zh-CN`, `zh-TW`, and `ja`. Select one with `--language`, `SENKO_LANGUAGE`, or the
-XDG configuration file's `language` field; otherwise Senko checks `LC_ALL`, `LC_MESSAGES`, a colon-separated
-`LANGUAGE` preference list, `LANG`, and the Node.js runtime locale before falling back to English. This detection is
-stateless and repeats on every launch.
+表示言語は日本語（`ja`）と英語（`en`）に対応しています。`--language`、`SENKO_LANGUAGE`、またはXDG設定
+ファイルの`language`で指定できます。明示的な指定がない場合は端末のロケールから検出し、対応言語がなければ
+英語を使用します。

@@ -34,7 +34,7 @@ describe("parseCliArgs", () => {
 
 	it("parses supported language identifiers and aliases", () => {
 		expect(parseCliArgs(["--language", "ja"]).language).toBe("ja");
-		expect(parseCliArgs(["--language=zh-Hant"]).language).toBe("zh-TW");
+		expect(parseCliArgs(["--language=ja_JP.UTF-8"]).language).toBe("ja");
 	});
 
 	it("localizes unsupported language errors", () => {

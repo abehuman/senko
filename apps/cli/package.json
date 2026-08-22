@@ -40,7 +40,7 @@
 		"directory": "apps/cli"
 	},
 	"scripts": {
-		"build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+		"build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/copy-assets.mjs",
 		"dev": "node --enable-source-maps --import tsx src/cli.ts",
 		"prepack": "pnpm build",
 		"typecheck": "tsc -p tsconfig.json --noEmit"

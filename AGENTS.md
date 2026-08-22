@@ -9,7 +9,8 @@ Update this doc if something is wrong/outdated.
 ## Documentation
 
 - Main documentation files are:
-  - `README.md`: product overview, CLI usage, configuration, sessions, and resources.
+  - `README.md`: Japanese product overview, CLI usage, configuration, sessions, and resources.
+  - `README.en.md`: English version of the root README.
   - `apps/cli/README.md`: published CLI package overview.
   - `docs/positioning.md`: target customer, customer problems, product pillars, and messaging boundaries.
   - `docs/architecture.md`: runtime boundaries, storage, and performance policy.

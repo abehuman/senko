@@ -1,58 +1,39 @@
 # Senko
 
-Senko is a provider-flexible AI coding agent for development teams at Japanese companies that already use Claude Code
-or Codex. It is designed as an additional execution path when usage limits, cost, or a single provider's outage would
-otherwise stop AI-assisted development.
+日本語 | [English](README.en.md)
 
-The current milestone is a free, Japanese-capable CLI for macOS and Linux. It embeds the
-[Pi coding-agent SDK](https://github.com/earendil-works/pi) behind a small Senko-owned interface and can connect to
-configurable OpenAI-compatible endpoints. A curated managed model service and per-member team plans are planned, but
-are not available yet. See [the product positioning](docs/positioning.md) for the target customer and product pillars.
+Senkoは、macOSとLinuxのターミナルで動作する無料の日本語対応AIコーディングエージェントです。
+[Pi coding-agent SDK](https://github.com/earendil-works/pi)を基盤に、任意のOpenAI互換エンドポイントへ接続できます。
 
 > [!WARNING]
-> Senko currently runs read, write, edit, and shell tools automatically with the same host permissions as the
-> terminal process. There is no sandbox or per-tool approval prompt yet. Run it only in workspaces and environments
-> you trust.
+> 現在のSenkoは、ターミナルプロセスと同じホスト権限で`read`、`write`、`edit`、`shell`ツールを自動実行します。
+> サンドボックスやツールごとの承認画面はまだありません。信頼できるワークスペースと環境でのみ使用してください。
 
-## Requirements
+## インストール
 
-- Node.js 22.19.0 or newer
-- pnpm 10.34.1 for development
-- macOS or Linux
-
-## Development
+Node.js 22.19.0以上が必要です。対応OSはmacOSとLinuxです。
 
 ```sh
-pnpm install
-pnpm build
-pnpm test
-pnpm dev -- --help
+npm install --global @senkocode/cli
 ```
 
-To work on the product website locally:
+## クイックスタート
+
+Senko APIはまだ利用できません。利用するOpenAI互換APIのURLとAPIキーを指定してください。CLI自体は無料ですが、
+外部APIの利用料金は各プロバイダーの契約に従います。
 
 ```sh
-pnpm dev:website
+export SENKO_BASE_URL=https://api.example.com/v1
+export SENKO_API_KEY=your-key
+
+senko --model your-model
 ```
 
-Run every local verification step with:
-
-```sh
-pnpm check
-pnpm smoke:pack
-```
-
-Record a non-gating local performance baseline with:
-
-```sh
-pnpm bench
-```
-
-## CLI usage
+## 使い方
 
 ```text
-senko [initial prompt]
-senko --print <prompt>
+senko [最初のプロンプト]
+senko --print <プロンプト>
 senko --continue
 senko --resume <session-id>
 senko sessions
@@ -61,45 +42,44 @@ senko --help
 senko --version
 ```
 
-A non-TTY stdin stream automatically selects print mode. New sessions persist by default; use `--no-session` for an
-ephemeral run. `--continue` selects the newest session for the current working directory, while `--resume` accepts an
-exact session ID or a unique prefix.
+TTYではない標準入力を渡すと、自動的にprintモードになります。新しいセッションは既定で保存され、
+`--no-session`を指定するとメモリ内だけで実行されます。`--continue`は現在のディレクトリで最新のセッションを選択し、
+`--resume`は完全なセッションIDまたは一意なID接頭辞を受け付けます。
 
-Senko automatically compacts long sessions with the active model before their configured context limit. Before each
-prompt, it includes the pending prompt in its estimate and keeps `maxOutputTokens` plus Pi's 4,096-token request
-safety margin free. It preserves up to 20,000 recent tokens, leaves room for the generated summary, and replaces older
-model-visible history with that persisted summary. The TUI shows compaction progress; print mode writes it to stderr
-without mixing it into assistant stdout. If a provider still reports an early context overflow, Senko visibly
-compacts and retries once.
+対話型TUIのコマンドメニューは、`/`または日本語入力中の全角`；`で開けます。全角英字でも候補を絞り込め、
+確定後のコマンド名は半角英字になります。`/compact`で現在のコンテキストを手動圧縮できます。`/clear`は新しい
+セッションを開始し、`/new`はその別名です。`/resume`は保存済みセッションの選択画面を開きます。`/exit`でSenkoを
+終了し、`/quit`はその別名です。`/model`と`/plan`は未実装で、モデルへ送信せずに案内を表示します。
 
-Inside the interactive TUI, `/compact` performs the same compaction on demand and does not accept additional
-instructions. `Escape` or `Ctrl+C` cancels an active manual or automatic compaction. `/exit` ends Senko and `/quit` is
-its alias. The planned `/model`, `/new`, `/clear`, `/plan`, and `/resume` commands are recognized as placeholders and
-currently display `This feature is not built yet.` without contacting the model.
+長いセッションはコンテキスト上限へ達する前に自動圧縮されます。TUIでは進行状況を表示し、printモードでは
+アシスタントの標準出力に混ぜずstderrへ出力します。手動または自動圧縮中に`Escape`か`Ctrl+C`を押すと
+キャンセルできます。
 
-## Configuration
+## 設定
 
-Senko resolves supported settings from CLI flags, then their documented `SENKO_*` environment variables, then the
-XDG configuration file. Model selection uses `--model`, then the configuration file's `model` field, then the `fast`
-default; it has no environment-variable override. The API root defaults to `https://api.senkocode.com/v1`.
+設定項目ごとの優先順位は次のとおりです。
 
-The interface supports English (`en`), Simplified Chinese (`zh-CN`), Traditional Chinese (`zh-TW`), and Japanese
-(`ja`). Set it with `--language`, `SENKO_LANGUAGE`, or the `language` configuration field. When none is set, Senko
-detects `LC_ALL`, `LC_MESSAGES`, `LANGUAGE`, `LANG`, then Node.js's runtime locale and falls back to English.
-`LANGUAGE` may contain a colon-separated preference list. Detection is stateless and repeats on every launch until an
-explicit language is set. Locale aliases such as `ja_JP.UTF-8`, `zh_CN`, `zh_Hans`, and `zh_Hant` are accepted.
-Commands, option names, environment variables, and raw tool output remain unchanged across languages.
+| 設定 | 優先順位 |
+| --- | --- |
+| APIルート | `--base-url` → `SENKO_BASE_URL` → `baseUrl` → `https://api.senkocode.com/v1` |
+| APIプロトコル | `--api` → `SENKO_API` → `api` → `openai-completions` |
+| モデル | `--model` → `model` → `fast` |
+| 表示言語 | `--language` → `SENKO_LANGUAGE` → `language` → OSのロケール検出 → 英語 |
+| APIキー | `SENKO_API_KEY`のみ |
+| `contextWindow` | 設定ファイル → `32768` |
+| `maxOutputTokens` | 設定ファイル → `4096` |
+| `reasoning` | 設定ファイル → `false` |
 
-```sh
-export SENKO_API_KEY=your-key
-export SENKO_API=openai-completions
-export SENKO_LANGUAGE=ja
+表中の`baseUrl`、`api`、`model`、`language`はXDG設定ファイルのフィールド名です。モデルには環境変数による
+上書きはありません。
 
-pnpm dev -- --print "Summarize this repository"
-```
+表示言語は日本語（`ja`）と英語（`en`）に対応しています。明示的な指定がない場合は、`LC_ALL`、
+`LC_MESSAGES`、`LANGUAGE`、`LANG`、Node.jsの実行時ロケールの順で検出します。`LANGUAGE`には
+コロン区切りの優先言語リストを指定できます。`ja_JP.UTF-8`や`en_US.UTF-8`などのロケール表記にも対応しています。
+コマンド名、オプション名、環境変数名、ツールの生出力は表示言語によって変更されません。
 
-The non-secret configuration file is `$XDG_CONFIG_HOME/senko/config.json`, or
-`~/.config/senko/config.json` when `XDG_CONFIG_HOME` is unset:
+機密情報を含まない設定ファイルは`$XDG_CONFIG_HOME/senko/config.json`に置きます。`XDG_CONFIG_HOME`が
+未設定の場合は`~/.config/senko/config.json`を使用します。
 
 ```json
 {
@@ -112,33 +92,40 @@ The non-secret configuration file is `$XDG_CONFIG_HOME/senko/config.json`, or
 }
 ```
 
-API keys are accepted only through `SENKO_API_KEY`; they are never read from the configuration file or written to
-session files. Loopback endpoints can run without a user-supplied key. Override the default API root with
-`--base-url`, `SENKO_BASE_URL`, or the configuration file's `baseUrl` field. `baseUrl` is the complete API root: Senko
-removes one trailing slash but never appends `/v1`.
+APIキーは`SENKO_API_KEY`からのみ受け付け、設定ファイルから読み込んだりセッションファイルへ保存したりしません。
+ループバックエンドポイントでは、APIキーを指定せずに実行できます。`baseUrl`には完全なAPIルートを指定してください。
+Senkoは末尾のスラッシュを1つ削除しますが、`/v1`を自動追加しません。
 
-`maxOutputTokens` must be at least 2, and `contextWindow` must be greater than `maxOutputTokens` plus the 4,096-token
-request safety margin.
+`maxOutputTokens`は2以上である必要があります。また、`contextWindow`は`maxOutputTokens`と4,096トークンの
+リクエスト安全領域の合計より大きくする必要があります。
 
-Sessions are stored under `$XDG_STATE_HOME/senko/sessions`, or `~/.local/state/senko/sessions` when
-`XDG_STATE_HOME` is unset.
+セッションは`$XDG_STATE_HOME/senko/sessions`に保存します。`XDG_STATE_HOME`が未設定の場合は
+`~/.local/state/senko/sessions`を使用します。
 
-## Agent resources
+## エージェントリソース
 
-Senko's built-in base instructions live in [`apps/cli/src/prompts/base.md`](apps/cli/src/prompts/base.md) and are
-bundled with the CLI. Senko also reads portable instructions from `AGENTS.md` files between the repository root and
-the working directory. It discovers skills from repository `.agents/skills/` directories and from
-`~/.agents/skills/`. It does not load `.pi`, `.claude`, `.opencode`, or `.senko` project resources.
+Senkoの組み込み基本指示は[`apps/cli/src/prompts/base.md`](apps/cli/src/prompts/base.md)にあり、CLIへ同梱されます。
+リポジトリルートから作業ディレクトリまでにある`AGENTS.md`の汎用指示も読み込みます。スキルはリポジトリ内の
+`.agents/skills/`と`~/.agents/skills/`から検出します。プロジェクト内の`.pi`、`.claude`、`.opencode`、
+`.senko`リソースは読み込みません。
 
-See [the architecture](docs/architecture.md), [benchmark definitions](benchmarks/README.md), and
-[future inference API contract](docs/inference-api.md) for details.
+## 開発
 
-## Distribution
-
-The CLI is published on npm as `@senkocode/cli` version `0.1.0`, with the executable name `senko`:
+開発にはpnpm 10.34.1を使用します。
 
 ```sh
-npm install --global @senkocode/cli
+pnpm install
+pnpm build
+pnpm test
+pnpm dev -- --help
 ```
 
-Follow the [release guide](docs/releasing.md) to verify and publish future versions.
+```sh
+pnpm dev:website
+pnpm check
+pnpm smoke:pack
+pnpm bench
+```
+
+開発者向けの詳細は[アーキテクチャ](docs/architecture.md)、[ベンチマーク定義](benchmarks/README.md)、
+[リリースガイド](docs/releasing.md)を参照してください。

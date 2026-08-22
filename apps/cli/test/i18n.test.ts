@@ -28,10 +28,6 @@ describe("locale resolution", () => {
 	it.each([
 		["en_US.UTF-8", "en"],
 		["ja_JP.UTF-8", "ja"],
-		["zh_CN.UTF-8", "zh-CN"],
-		["zh-Hans", "zh-CN"],
-		["zh_TW.UTF-8", "zh-TW"],
-		["zh-Hant-HK", "zh-TW"],
 		["C", "en"],
 	])("normalizes %s to %s", (input, expected) => {
 		expect(normalizeLocale(input)).toBe(expected);
@@ -39,6 +35,8 @@ describe("locale resolution", () => {
 
 	it("rejects unsupported locale values", () => {
 		expect(normalizeLocale("fr-FR")).toBeUndefined();
+		expect(normalizeLocale("zh-CN")).toBeUndefined();
+		expect(normalizeLocale("zh-TW")).toBeUndefined();
 	});
 
 	it("respects system locale environment precedence", () => {
@@ -46,9 +44,9 @@ describe("locale resolution", () => {
 			detectSystemLocale({
 				env: {
 					LANG: "en_US.UTF-8",
-					LANGUAGE: "zh-TW:en",
+					LANGUAGE: "fr:en",
 					LC_ALL: "ja_JP.UTF-8",
-					LC_MESSAGES: "zh_CN.UTF-8",
+					LC_MESSAGES: "en_US.UTF-8",
 				},
 				runtimeLocale: "en-US",
 			}),
@@ -58,10 +56,10 @@ describe("locale resolution", () => {
 	it("uses the first supported LANGUAGE preference before LANG", () => {
 		expect(
 			detectSystemLocale({
-				env: { LANG: "en_US.UTF-8", LANGUAGE: "fr:zh_Hant:ja" },
+				env: { LANG: "en_US.UTF-8", LANGUAGE: "fr:ja" },
 				runtimeLocale: "en-US",
 			}),
-		).toBe("zh-TW");
+		).toBe("ja");
 	});
 
 	it("uses the runtime locale after unsupported environment locales", () => {
@@ -73,19 +71,19 @@ describe("locale resolution", () => {
 		const path = await configPath("ja");
 		expect(
 			await resolveCliLocale({
-				argv: ["--language", "zh-CN"],
+				argv: ["--language", "en"],
 				configPath: path,
-				env: { LANG: "en_US.UTF-8", SENKO_LANGUAGE: "zh-TW" },
+				env: { LANG: "en_US.UTF-8", SENKO_LANGUAGE: "ja" },
 			}),
-		).toBe("zh-CN");
+		).toBe("en");
 		expect(await resolveCliLocale({ argv: [], configPath: path, env: { LANG: "en_US.UTF-8" } })).toBe("ja");
 		expect(
 			await resolveCliLocale({
 				argv: [],
 				configPath: join(tmpdir(), "missing-senko-config"),
-				env: { LANG: "zh_HK.UTF-8" },
+				env: { LANG: "ja_JP.UTF-8" },
 			}),
-		).toBe("zh-TW");
+		).toBe("ja");
 	});
 
 	it("falls back to English when no supported locale is available", async () => {
@@ -93,8 +91,8 @@ describe("locale resolution", () => {
 			await resolveCliLocale({
 				argv: [],
 				configPath: join(tmpdir(), "missing-senko-config"),
-				env: { LANG: "fr_FR.UTF-8" },
-				runtimeLocale: "fr-FR",
+				env: { LANG: "zh_CN.UTF-8" },
+				runtimeLocale: "zh-TW",
 			}),
 		).toBe("en");
 	});
@@ -103,12 +101,7 @@ describe("locale resolution", () => {
 describe("translations", () => {
 	it("provides native help and command copy for every supported locale", () => {
 		const taglines = SUPPORTED_LOCALES.map((locale) => createI18n(locale).t("headerTagline"));
-		expect(taglines).toEqual([
-			"fast coding agent",
-			"高速编程智能体",
-			"高速程式設計代理",
-			"高速コーディングエージェント",
-		]);
+		expect(taglines).toEqual(["fast coding agent", "高速コーディングエージェント"]);
 		for (const locale of SUPPORTED_LOCALES) {
 			const i18n = createI18n(locale);
 			expect(i18n.t("helpText")).toContain("--language <locale>");

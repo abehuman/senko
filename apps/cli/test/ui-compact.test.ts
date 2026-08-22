@@ -36,10 +36,7 @@ describe("interactive compaction", () => {
 
 	it("localizes compaction results", () => {
 		expect(
-			compactCommandMessage(
-				{ estimatedTokensAfter: 7_200, status: "success", tokensBefore: 24_100 },
-				createI18n("zh-CN"),
-			),
-		).toBe("已压缩上下文：24,100 → 约7,200个词元。");
+			compactCommandMessage({ estimatedTokensAfter: 7_200, status: "success", tokensBefore: 24_100 }, createI18n("ja")),
+		).toBe("コンテキストを圧縮しました: 24,100 → 約7,200トークン。");
 	});
 });

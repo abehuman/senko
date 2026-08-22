@@ -73,7 +73,7 @@ Options:
       --base-url <url>        API root (default: https://api.senkocode.com/v1)
       --model <id>            Model ID (default: fast)
       --api <protocol>        openai-completions or openai-responses
-      --language <locale>     Interface language: en, zh-CN, zh-TW, or ja
+      --language <locale>     Interface language: en or ja
   -h, --help                  Show help
   -v, --version               Show version
 
@@ -93,8 +93,7 @@ Safety:
 		labelThinkingActive: () => "thinking…",
 		labelTool: () => "tool",
 		labelYou: () => "you",
-		languageUnsupported: ({ value }: { value: string }) =>
-			`Unsupported language "${value}". Use en, zh-CN, zh-TW, or ja.`,
+		languageUnsupported: ({ value }: { value: string }) => `Unsupported language "${value}". Use en or ja.`,
 		listSessionsFailed: ({ message }: { message: string }) => `Could not list saved sessions: ${message}`,
 		maxOutputTokensMinimum: ({ path }: { path: string }) => `maxOutputTokens must be at least 2 in ${path}.`,
 		modelRegistrationFailed: ({ model }: { model: string }) => `Could not register model "${model}".`,
