@@ -71,19 +71,17 @@ describe("interactive slash commands", () => {
 		expect(normalizeCommandEditorInput("　", "日本語")).toBe("　");
 	});
 
-	it("lists every documented command when the user types slash", async () => {
+	it("lists primary commands without aliases when the user types slash", async () => {
 		const provider = new CombinedAutocompleteProvider(slashCommands, process.cwd());
 		const suggestions = await provider.getSuggestions(["/"], 0, 1, { signal: new AbortController().signal });
 
 		expect(suggestions?.items.map((item) => item.value)).toEqual([
 			"compact",
 			"clear",
-			"new",
 			"resume",
 			"model",
 			"plan",
 			"exit",
-			"quit",
 		]);
 	});
 

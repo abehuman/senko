@@ -96,12 +96,10 @@ export function createSlashCommands(i18n: I18n = defaultI18n): SlashCommand[] {
 	return [
 		{ name: "compact", description: i18n.t("commandCompactDescription") },
 		{ name: "clear", description: i18n.t("commandNewDescription") },
-		{ name: "new", description: i18n.t("commandNewDescription") },
 		{ name: "resume", description: i18n.t("commandResumeDescription") },
 		{ name: "model", description: i18n.t("commandModelDescription") },
 		{ name: "plan", description: i18n.t("commandPlanDescription") },
 		{ name: "exit", description: i18n.t("commandExitDescription") },
-		{ name: "quit", description: i18n.t("commandExitDescription") },
 	];
 }
 
