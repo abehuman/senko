@@ -3,6 +3,7 @@ export const API_PROTOCOLS = ["openai-completions", "openai-responses"] as const
 export type ApiProtocol = (typeof API_PROTOCOLS)[number];
 
 export interface CloudflareBindings {
+	SENKO_ADMISSION?: DurableObjectNamespace;
 	SENKO_API_KEYS?: string;
 	SENKO_FAST_MODEL?: string;
 	SENKO_MODELS?: string;
@@ -11,6 +12,7 @@ export interface CloudflareBindings {
 }
 
 export interface AppVariables {
+	apiKeyId: string;
 	requestId: string;
 }
 

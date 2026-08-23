@@ -12,13 +12,20 @@ separate operational step.
 The Worker exposes public root and health checks plus authenticated OpenAI-compatible routes under `/v1`. It validates
 client Bearer keys against the `SENKO_API_KEYS` Worker secret, resolves `fast` through a server-owned curated model
 catalog, replaces the alias before forwarding, and sends the request to one configured HTTPS LLM API. The Worker
-passes the incoming abort signal to the LLM API `fetch`, performs no automatic retries, streams successful response
-bodies without buffering, and normalizes non-compatible LLM API errors without exposing their response bodies.
+derives a non-secret SHA-256 identifier from each accepted key and acquires an inference lease from one globally named
+Durable Object before reading or forwarding the request. That controller enforces fixed per-key and Worker-wide request
+and concurrency ceilings across isolates. Requests larger than 1 MiB are rejected before JSON parsing. Output is capped
+at 16,384 tokens or the model's lower declared limit, and Chat Completions is restricted to one choice. Together with
+the request ceilings, those constraints provide finite input and output exposure for the shared LLM API credential. The
+Worker passes the incoming abort signal to the LLM API `fetch`, performs no automatic retries, streams successful
+response bodies without buffering, releases the inference lease when the upstream body finishes or is cancelled, and
+normalizes non-compatible LLM API errors without exposing their response bodies.
 
 Configuration comes only from typed Cloudflare bindings. LLM API and client keys are secrets; model metadata, the
-`fast` target, and LLM API base URL are text variables. Request forwarding does not copy the client Authorization
-header, prompt data is not logged by application code, and responses receive a Worker-generated `x-request-id`.
-Billing, persistent account/key storage, and multi-provider routing remain outside this initial runtime.
+`fast` target, and LLM API base URL are text variables; and admission state uses a SQLite-backed Durable Object. Wrangler
+preserves Dashboard-managed text variables during deploy. Request forwarding does not copy the client Authorization
+header, prompt data is not logged by application code, and responses receive a Worker-generated `x-request-id`. Billing,
+persistent account/key storage, usage-based plan quotas, and multi-provider routing remain outside this initial runtime.
 
 ## Runtime flow
 

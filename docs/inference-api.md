@@ -29,7 +29,9 @@ Invalid or missing credentials return `401`. Authorization failures must not rev
 existed. LLM API credentials remain Worker secrets and are never sent to clients.
 
 Until API-key issuance and account storage are designed, accepted client keys are loaded from the `SENKO_API_KEYS`
-Worker secret as a comma- or newline-delimited list. This is an operational bootstrap, not the future account model.
+Worker secret as a comma- or newline-delimited list. The Worker derives a SHA-256 identifier for the matched key so that
+admission limits can be isolated without storing or forwarding the key itself. This is an operational bootstrap, not
+the future account model.
 
 ## Endpoints
 
@@ -52,6 +54,10 @@ calls, function-call outputs, terminal response events, and usage.
 Both endpoints accept `model: "fast"`. Every response and terminal stream event reports the resolved underlying model
 identifier rather than only echoing the alias.
 
+Request bodies are limited to 1 MiB and rejected with `413 request_too_large` before JSON parsing or LLM API forwarding.
+Each request is capped at 16,384 output tokens or the selected model's lower `max_output_tokens` value. Chat Completions
+supports exactly one choice (`n: 1`) so a client cannot multiply generations inside one admitted request.
+
 ## Errors and operational metadata
 
 Non-streaming errors use an OpenAI-compatible envelope:
@@ -72,7 +78,11 @@ Responses include `x-request-id` and standard rate-limit limit, remaining, and r
 cached-input when available, reasoning when available, and output tokens.
 
 The initial Worker generates `x-request-id` itself and forwards standard `x-ratelimit-*` and `retry-after` headers
-when the LLM API provides them. Senko-owned quota enforcement remains deferred with billing and account management.
+when the LLM API provides them. Before forwarding inference, one globally named Durable Object enforces fixed safety
+ceilings of 20 requests per minute and 2 concurrent requests per API key, plus 120 requests per minute and 12 concurrent
+requests across the Worker. Rejections return `429 rate_limit_exceeded` with `Retry-After`. Leases are released when the
+upstream response body finishes or is cancelled, and abandoned leases expire after 10 minutes. Billing and usage-based
+plan quotas remain deferred, but a client key cannot send unbounded traffic through the shared LLM API credential.
 
 The Worker propagates client cancellation to the active LLM API request. It never silently retries a request after
 stream bytes have been delivered. Logs use request IDs and resolved model IDs but exclude authorization headers,
@@ -83,7 +93,9 @@ prompt content, tool arguments, tool results, and generated text by default.
 `apps/api` reads secrets and text bindings through `c.env`; it does not use `process.env` or enable Node.js
 compatibility. `SENKO_MODELS` is a JSON array containing the public model metadata described above,
 `SENKO_FAST_MODEL` selects one ID from that array, and `LLM_API_BASE_URL` plus the `LLM_API_KEY` secret define the LLM
-API that receives inference requests. See [`apps/api/README.md`](../apps/api/README.md) for the exact setup.
+API that receives inference requests. `SENKO_ADMISSION` is the SQLite-backed Durable Object binding defined by
+`wrangler.jsonc`; the same configuration enables `keep_vars` so deployments preserve Dashboard-managed text bindings.
+See [`apps/api/README.md`](../apps/api/README.md) for the exact setup.
 
 ## Deferred work
 

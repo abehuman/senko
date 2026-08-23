@@ -1,7 +1,16 @@
 const encoder = new TextEncoder();
 
 let cachedRawKeys: string | undefined;
-let cachedKeyDigests: Promise<Uint8Array[]> | undefined;
+let cachedKeyDigests: Promise<ApiKeyDigest[]> | undefined;
+
+interface ApiKeyDigest {
+	digest: Uint8Array;
+	id: string;
+}
+
+export interface AuthenticatedApiKey {
+	id: string;
+}
 
 function parseKeys(rawKeys: string): string[] {
 	return [
@@ -18,6 +27,10 @@ async function digest(value: string): Promise<Uint8Array> {
 	return new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
 }
 
+function digestId(value: Uint8Array): string {
+	return [...value].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 function equalDigest(left: Uint8Array, right: Uint8Array): boolean {
 	if (left.length !== right.length) {
 		return false;
@@ -29,26 +42,36 @@ function equalDigest(left: Uint8Array, right: Uint8Array): boolean {
 	return difference === 0;
 }
 
-async function getKeyDigests(rawKeys: string): Promise<Uint8Array[]> {
+async function getKeyDigests(rawKeys: string): Promise<ApiKeyDigest[]> {
 	if (rawKeys !== cachedRawKeys || !cachedKeyDigests) {
 		cachedRawKeys = rawKeys;
-		cachedKeyDigests = Promise.all(parseKeys(rawKeys).map(digest));
+		cachedKeyDigests = Promise.all(
+			parseKeys(rawKeys).map(async (key) => {
+				const keyDigest = await digest(key);
+				return { digest: keyDigest, id: digestId(keyDigest) };
+			}),
+		);
 	}
 	return cachedKeyDigests;
 }
 
-export async function authenticate(authorization: string | undefined, rawKeys: string | undefined): Promise<boolean> {
+export async function authenticate(
+	authorization: string | undefined,
+	rawKeys: string | undefined,
+): Promise<AuthenticatedApiKey | undefined> {
 	if (!authorization || !rawKeys?.trim()) {
-		return false;
+		return undefined;
 	}
 	const match = /^Bearer ([^\s]+)$/i.exec(authorization);
 	if (!match?.[1]) {
-		return false;
+		return undefined;
 	}
 	const [candidate, allowed] = await Promise.all([digest(match[1]), getKeyDigests(rawKeys)]);
-	let matches = false;
-	for (const keyDigest of allowed) {
-		matches = equalDigest(candidate, keyDigest) || matches;
+	let matchedId: string | undefined;
+	for (const key of allowed) {
+		if (equalDigest(candidate, key.digest)) {
+			matchedId = key.id;
+		}
 	}
-	return matches;
+	return matchedId ? { id: matchedId } : undefined;
 }

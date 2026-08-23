@@ -3,6 +3,21 @@
 	"name": "senko-api",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-08-23",
+	"keep_vars": true,
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "SENKO_ADMISSION",
+				"class_name": "AdmissionController"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["AdmissionController"]
+		}
+	],
 	"observability": {
 		"enabled": true
 	}
