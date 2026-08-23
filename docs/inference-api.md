@@ -58,6 +58,13 @@ Request bodies are limited to 1 MiB and rejected with `413 request_too_large` be
 Each request is capped at 16,384 output tokens or the selected model's lower `max_output_tokens` value. Chat Completions
 supports exactly one choice (`n: 1`) so a client cannot multiply generations inside one admitted request.
 
+The Worker rebuilds requests from protocol-specific top-level allowlists instead of forwarding arbitrary JSON. It
+supports the text, reasoning, response-format, prompt-cache-key, and client-defined function-tool fields used by the
+Senko CLI. Unknown fields are rejected. Provider-side storage, background requests, service-tier selection, metadata,
+conversation/previous-response continuation, long cache-retention selection, hosted files, hosted tools, and input
+modalities not declared by the selected model are not available. `model`, output ceilings, `n`, and `store: false` are
+server-owned values. Client `OpenAI-Organization` and `OpenAI-Project` headers are never forwarded.
+
 ## Errors and operational metadata
 
 Non-streaming errors use an OpenAI-compatible envelope:
@@ -73,20 +80,28 @@ Non-streaming errors use an OpenAI-compatible envelope:
 }
 ```
 
-Once streaming has started, errors are emitted as protocol-appropriate terminal events before the stream closes.
-Responses include `x-request-id` and standard rate-limit limit, remaining, and reset headers. Usage reports input,
-cached-input when available, reasoning when available, and output tokens.
+Responses include `x-request-id` plus Senko-owned request/concurrency limit, remaining, and reset headers. Provider
+account-wide rate-limit values are not exposed. Usage remains part of the LLM API's compatible response body or stream.
+Once streaming has started, a Senko deadline, response limit, admission failure, client cancellation, or LLM API transport
+failure closes the stream because its HTTP status can no longer be replaced; clients must treat a stream without its
+normal protocol terminator as failed.
 
-The initial Worker generates `x-request-id` itself and forwards standard `x-ratelimit-*` and `retry-after` headers
-when the LLM API provides them. Before forwarding inference, one globally named Durable Object enforces fixed safety
+The initial Worker generates `x-request-id` itself and preserves `retry-after` on compatible LLM API errors. Before
+forwarding inference, one globally named Durable Object enforces fixed safety
 ceilings of 20 requests per minute and 2 concurrent requests per API key, plus 120 requests per minute and 12 concurrent
-requests across the Worker. Rejections return `429 rate_limit_exceeded` with `Retry-After`. Leases are released when the
-upstream response body finishes or is cancelled, and abandoned leases expire after 10 minutes. Billing and usage-based
-plan quotas remain deferred, but a client key cannot send unbounded traffic through the shared LLM API credential.
+requests across the Worker. Rejections return `429 rate_limit_exceeded` with `Retry-After`. A lease has a 90-second TTL,
+renews every 30 seconds while its request remains active, and can never outlive that request's absolute five-minute
+deadline. A transient renewal failure retries after five seconds. Inference is aborted only when the lease is confirmed
+missing or cannot be renewed before a ten-second expiry safety margin. Persisted leases from the previous schema are
+migrated without dropping concurrency ownership by using their existing expiry as the deadline. Release is idempotent and
+retried up to three times; final renewal/release failure emits a redacted structured warning. Billing and usage-based plan
+quotas remain deferred, but a client key cannot send unbounded request counts through the shared LLM API credential.
 
-The Worker propagates client cancellation to the active LLM API request. It never silently retries a request after
-stream bytes have been delivered. Logs use request IDs and resolved model IDs but exclude authorization headers,
-prompt content, tool arguments, tool results, and generated text by default.
+The Worker enables Cloudflare's incoming request signal and combines it with server-owned deadlines: 60 seconds to LLM
+API response headers, 45 seconds without a response-body chunk, and five minutes total. It caps every LLM API response at
+8 MiB and each SSE event at 256 KiB. It never silently retries an LLM generation. Application warning logs currently cover
+admission renewal/release failure and contain only an event name and request ID; authorization headers, prompt content,
+tool arguments, tool results, and generated text are not logged.
 
 ## Worker configuration
 
@@ -94,7 +109,8 @@ prompt content, tool arguments, tool results, and generated text by default.
 compatibility. `SENKO_MODELS` is a JSON array containing the public model metadata described above,
 `SENKO_FAST_MODEL` selects one ID from that array, and `LLM_API_BASE_URL` plus the `LLM_API_KEY` secret define the LLM
 API that receives inference requests. `SENKO_ADMISSION` is the SQLite-backed Durable Object binding defined by
-`wrangler.jsonc`; the same configuration enables `keep_vars` so deployments preserve Dashboard-managed text bindings.
+`wrangler.jsonc`; the same configuration enables `enable_request_signal` and `keep_vars` so deployments receive client
+cancellation and preserve Dashboard-managed text bindings.
 See [`apps/api/README.md`](../apps/api/README.md) for the exact setup.
 
 ## Deferred work

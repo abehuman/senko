@@ -15,16 +15,27 @@ catalog, replaces the alias before forwarding, and sends the request to one conf
 derives a non-secret SHA-256 identifier from each accepted key and acquires an inference lease from one globally named
 Durable Object before reading or forwarding the request. That controller enforces fixed per-key and Worker-wide request
 and concurrency ceilings across isolates. Requests larger than 1 MiB are rejected before JSON parsing. Output is capped
-at 16,384 tokens or the model's lower declared limit, and Chat Completions is restricted to one choice. Together with
-the request ceilings, those constraints provide finite input and output exposure for the shared LLM API credential. The
-Worker passes the incoming abort signal to the LLM API `fetch`, performs no automatic retries, streams successful
-response bodies without buffering, releases the inference lease when the upstream body finishes or is cancelled, and
-normalizes non-compatible LLM API errors without exposing their response bodies.
+at 16,384 tokens or the model's lower declared limit, Chat Completions is restricted to one choice, provider responses are
+capped at 8 MiB, and individual SSE events are capped at 256 KiB. Protocol-specific top-level allowlists rebuild the LLM
+API request, force provider storage off, accept only client-defined function tools, reject unsupported hosted/stateful
+features, and never forward client organization/project routing headers. Together with the request ceilings, those
+constraints provide finite input and output exposure for the shared LLM API credential. The Worker combines Cloudflare's
+incoming request signal with 60-second response-header, 45-second stream-idle, and five-minute total deadlines, performs
+no automatic generation retries, and streams compatible successful response bodies without buffering.
+
+Admission leases have a 90-second TTL, renew every 30 seconds without exceeding the request's absolute deadline, and are
+released when the response body finishes or is cancelled. Transient renewal failures retry after five seconds; only a
+confirmed missing lease or failure to renew before the ten-second expiry safety margin aborts inference. Persisted leases
+from the previous schema retain their existing expiry as their migration deadline. Idempotent release calls retry three
+times and final renewal/release failures generate redacted warnings. Compatible provider 4xx errors are reconstructed
+from only `message`, `type`, `code`, and `param`; provider account rate-limit headers and additional error metadata are not
+exposed.
 
 Configuration comes only from typed Cloudflare bindings. LLM API and client keys are secrets; model metadata, the
 `fast` target, and LLM API base URL are text variables; and admission state uses a SQLite-backed Durable Object. Wrangler
-preserves Dashboard-managed text variables during deploy. Request forwarding does not copy the client Authorization
-header, prompt data is not logged by application code, and responses receive a Worker-generated `x-request-id`. Billing,
+preserves Dashboard-managed text variables during deploy and enables incoming request cancellation signals. Request
+forwarding does not copy the client Authorization or provider-routing headers, prompt data is not logged by application
+code, and responses receive a Worker-generated `x-request-id` plus Senko-owned rate-limit metadata. Billing,
 persistent account/key storage, usage-based plan quotas, and multi-provider routing remain outside this initial runtime.
 
 ## Runtime flow
