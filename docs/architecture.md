@@ -2,10 +2,23 @@
 
 ## Repository boundary
 
-Milestone 1 is a pnpm workspace containing the published CLI package at `apps/cli` and the static product
-website at `apps/website`. The website is independent of the CLI runtime and does not expose an inference endpoint.
-The CLI defaults to `https://api.senkocode.com/v1`, while implementation of that service remains a separate future
-milestone under `apps/api`.
+The pnpm workspace contains the published CLI package at `apps/cli`, the Hono Cloudflare Worker at `apps/api`, and the
+static product website at `apps/website`. The website is independent of both runtimes and does not expose an inference
+endpoint. The CLI defaults to `https://api.senkocode.com/v1`; production deployment of the Worker to that origin is a
+separate operational step.
+
+## API runtime
+
+The Worker exposes public root and health checks plus authenticated OpenAI-compatible routes under `/v1`. It validates
+client Bearer keys against the `SENKO_API_KEYS` Worker secret, resolves `fast` through a server-owned curated model
+catalog, replaces the alias before forwarding, and sends the request to one configured HTTPS LLM API. The Worker
+passes the incoming abort signal to the LLM API `fetch`, performs no automatic retries, streams successful response
+bodies without buffering, and normalizes non-compatible LLM API errors without exposing their response bodies.
+
+Configuration comes only from typed Cloudflare bindings. LLM API and client keys are secrets; model metadata, the
+`fast` target, and LLM API base URL are text variables. Request forwarding does not copy the client Authorization
+header, prompt data is not logged by application code, and responses receive a Worker-generated `x-request-id`.
+Billing, persistent account/key storage, and multi-provider routing remain outside this initial runtime.
 
 ## Runtime flow
 

@@ -121,6 +121,7 @@ pnpm dev -- --help
 ```
 
 ```sh
+pnpm dev:api
 pnpm dev:website
 pnpm check
 pnpm smoke:pack
@@ -128,4 +129,4 @@ pnpm bench
 ```
 
 開発者向けの詳細は[アーキテクチャ](docs/architecture.md)、[ベンチマーク定義](benchmarks/README.md)、
-[リリースガイド](docs/releasing.md)を参照してください。
+[推論API契約](docs/inference-api.md)、[リリースガイド](docs/releasing.md)を参照してください。

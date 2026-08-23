@@ -4,6 +4,8 @@ coverage/
 artifacts/
 apps/website/.svelte-kit/
 apps/website/build/
+.wrangler/
 *.log
 *.tgz
+.dev.vars
 .DS_Store

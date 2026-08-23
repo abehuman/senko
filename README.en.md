@@ -123,11 +123,12 @@ pnpm dev -- --help
 ```
 
 ```sh
+pnpm dev:api
 pnpm dev:website
 pnpm check
 pnpm smoke:pack
 pnpm bench
 ```
 
-See the [architecture](docs/architecture.md), [benchmark definitions](benchmarks/README.md), and
-[release guide](docs/releasing.md) for contributor documentation.
+See the [architecture](docs/architecture.md), [benchmark definitions](benchmarks/README.md),
+[inference API contract](docs/inference-api.md), and [release guide](docs/releasing.md) for contributor documentation.
