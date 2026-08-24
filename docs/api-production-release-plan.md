@@ -56,7 +56,7 @@ billing, policy, redundancy, and operational requirements regardless of its beta
 
 ## Current baseline
 
-The following is confirmed in the baseline commit:
+The following is confirmed in the current source tree; the table above retains the original hardening baseline commit:
 
 - [x] Hono Cloudflare Worker with `/health`, `/v1/models`, `/v1/chat/completions`, and `/v1/responses`.
 - [x] Bootstrap Bearer authentication through the `SENKO_API_KEYS` Worker secret.
@@ -69,10 +69,12 @@ The following is confirmed in the baseline commit:
 - [x] Worker-generated request IDs and redacted warnings for final lease renewal/release failures.
 - [x] Cloudflare observability configuration enabled.
 - [x] Unit/injected-provider tests and Wrangler deployment dry-run.
+- [x] Source-complete direct `pg` identity access, explicit database/bootstrap auth modes, one-time HMAC-backed key
+  issuance, endpoint scopes, revocation, coalesced last-used updates, and management audit transactions.
 
-The following is not yet provided by the baseline:
+The following is not yet provided:
 
-- [ ] Persistent accounts, teams, account-owned API keys, scopes, rotation, revocation, and audit history.
+- [ ] Customer-managed users, teams, memberships, key listing/rotation, and entitlement administration.
 - [ ] Account-level entitlements, usage ledger, cost reservation/settlement, spend ceilings, and billing.
 - [ ] Full structured application events, metrics, dashboards, and production alerts.
 - [ ] Provider response adapters, normalized terminal events, multi-provider routing, or fallback.
@@ -148,24 +150,30 @@ Status: **In progress**
 
 ### Data and key lifecycle
 
-- [ ] Add persistent account and team records with explicit status and plan/entitlement references.
+- [x] Add protected R0 provisioning for persistent account records with explicit status and plan reference.
+- [ ] Add team provisioning and model/plan entitlement records.
 - [ ] Add account membership and administrative roles; define who can issue, list, rotate, and revoke keys.
-- [ ] Generate cryptographically random API keys with a versioned prefix and sufficient entropy.
-- [ ] Display the full key exactly once and never make it retrievable afterward.
-- [ ] Store only a lookup-safe hash/HMAC, non-secret prefix, owner, scopes, status, creation time, optional expiry,
+- [x] Generate cryptographically random API keys with a versioned prefix and sufficient entropy.
+- [x] Display the full key exactly once and never make it retrievable afterward.
+- [x] Store only a lookup-safe hash/HMAC, non-secret prefix, owner, scopes, status, creation time, optional expiry,
   revocation time, and last-used time.
-- [ ] Define scopes for model listing, inference protocols, administration, and future capabilities.
-- [ ] Implement immediate revocation and overlapping rotation without an outage window.
-- [ ] Make last-used updates bounded and failure-tolerant so they cannot block inference.
+- [x] Define and enforce initial scopes for model listing and both inference protocols.
+- [ ] Define administration and future capability scopes.
+- [x] Implement immediate revocation for new requests.
+- [ ] Implement overlapping rotation without an outage window.
+- [x] Make last-used updates bounded and failure-tolerant so they cannot block inference.
 - [ ] Add model and plan entitlements at the account level and optional narrower restrictions at the key level.
-- [ ] Enforce account-level request, concurrency, token, and spend limits independently of key count.
-- [ ] Add append-only administrative audit events for key and entitlement changes.
-- [ ] Design a controlled migration away from `SENKO_API_KEYS`; retain no silent permanent bootstrap bypass.
+- [x] Enforce fixed account-level request and concurrency safety ceilings independently of key count.
+- [ ] Enforce account-level token and spend limits independently of key count through reservation and settlement.
+- [x] Add append-only administrative audit events in the same transaction as account creation, key issue, and revoke.
+- [ ] Add entitlement-change audit events when entitlements are implemented.
+- [x] Design a controlled migration away from `SENKO_API_KEYS`; explicit modes retain no silent bootstrap fallback.
 
 ### Security and verification
 
 - [ ] Threat-model key generation, storage lookup, timing behavior, logs, caches, rotation, and compromised-key handling.
-- [ ] Test unknown, expired, revoked, wrong-scope, disabled-account, and cross-account access.
+- [x] Unit-test unknown, expired, revoked, wrong-scope, disabled-account, and cross-account access.
+- [ ] Repeat lifecycle and cross-account checks against the migrated development/test database and staging Worker.
 - [ ] Test concurrent rotation/revocation while requests are waiting, admitted, and streaming.
 - [ ] Verify raw keys and authorization headers cannot appear in application, Cloudflare, CI, or support logs.
 - [ ] Add an administrative recovery procedure with least-privilege access and audit evidence.
@@ -396,6 +404,9 @@ Status: **Not started; threshold-triggered**
 The current single global Durable Object is acceptable only while traffic remains within its measured capacity and the
 fixed 120-request/minute, 12-concurrent-request Worker ceilings. This workstream is not automatically an R2 blocker if
 load tests validate those ceilings, but it must complete before materially raising them or making a scale claim.
+The current per-key and per-account constants are R0 cost/runaway guardrails, not customer plan entitlements or an
+enterprise capacity commitment. They are intentionally insufficient for a large organization and must not be copied
+into pricing or availability promises.
 
 - [ ] Define a measured trigger using sustained traffic, queueing, p95/p99 admission latency, error rate, and planned
   limit increases.
@@ -452,7 +463,7 @@ Exit criteria:
 
 1. **IAM foundation:** apply and verify the reviewed schema in development/test, add the direct Railway PostgreSQL
    access boundary, implement hashed one-time keys, and migrate authentication behind an interface while preserving a
-   controlled bootstrap path for local development.
+   controlled bootstrap path for local development. **Source-complete; live Worker connection and runtime role pending.**
 2. **Provider contract layer:** implement one adapter for both protocols, normalize terminal usage/model/error behavior,
    and add malformed/incomplete-stream fixtures before adding a second route.
 3. **Usage ledger:** add idempotent reservation and settlement with account token/spend ceilings and failure-state tests.
@@ -462,8 +473,19 @@ Exit criteria:
 6. **Redundant routing and launch work:** add the second route, failover/circuit behavior, billing, customer controls,
    runbooks, and the R2/R3 verification suites.
 
-The next coding slice should review and apply the IAM migration to development/test, then add the database access and API
-key lifecycle boundary. Production migration and backup policy remain separate R2 release operations.
+### Deferred external setup
+
+The following development/test-only work is intentionally deferred while the operator is away from the workstation. It
+remains the next external IAM verification slice and requires separate approval before any Railway or Cloudflare change:
+
+- [ ] Create a least-privilege runtime database role on development/test Railway PostgreSQL only.
+- [ ] Configure staging-only `SENKO_DATABASE_URL`, `SENKO_API_KEY_HASH_SECRET_V1`, `SENKO_ADMIN_TOKEN`, and
+  `SENKO_AUTH_MODE=database` in Cloudflare.
+- [ ] From a real staging Worker, verify account creation, one-time key issue, scoped authentication, and immediate
+  revocation against the development/test database.
+
+Production migration, secrets, deployment, and backup policy remain separate release operations and are not authorized
+by this deferred task.
 
 ## Decision log
 
@@ -477,12 +499,13 @@ key lifecycle boundary. Production migration and backup policy remain separate R
 | D-006 | TBD | R2 supported models/providers/protocols/regions and beta terms | Open | Determines adapter and verification scope |
 | D-007 | TBD | R3 SLO and availability promise | Open | Determines redundancy and operational gates |
 | D-008 | 2026-08-24 | Start with direct `pg` connections from Workers to Railway PostgreSQL | Accepted | Defer connection pooling until measured latency or connection pressure justifies it |
+| D-009 | 2026-08-24 | Treat fixed admission limits as R0 safety guardrails, not product-plan or enterprise capacity | Accepted | Replace with account entitlements backed by measured provider capacity; partition admission before materially raising limits |
 
 ## Risk register
 
 | Risk | Impact | Control/workstream | Status |
 | --- | --- | --- | --- |
-| Multiple keys multiply account quota | Unbounded cost | IAM + USG account-level atomic ceilings | Open |
+| Multiple keys multiply account quota | Unbounded cost | IAM fixed request/concurrency ceilings + USG token/spend ceilings | Partially controlled |
 | Missing/incorrect terminal usage | Underbilling or budget drift | ADP validation + USG conservative settlement/reconciliation | Open |
 | Fallback creates duplicate generations/cost | Double charge and inconsistent output | ADP pre-byte-only fallback + attempt ledger | Open |
 | Customer content reaches logs | Privacy/security incident | OBS schema, central redaction, negative tests | Open |
@@ -505,6 +528,8 @@ key lifecycle boundary. Production migration and backup policy remain separate R
 | 2026-08-24 | D-002 storage selection | Railway managed PostgreSQL selected; production and development/test database services separated | Decision recorded; connection and runtime settings not verified |
 | 2026-08-24 | IAM schema | Drizzle schema, generated `0000_iam_foundation.sql`, migration check, typecheck, and four schema tests | Passed locally |
 | 2026-08-24 | Development/test IAM migration | Target-ID guard; TLS session; one migration; 8 tables; 13 foreign keys; 27 checks; 23 indexes | Applied only to `Senko Test Postgres`; independent verification passed |
+| 2026-08-24 | Worker identity source | Direct `pg` dry-run bundle; one-time HMAC keys; database/bootstrap modes; scoped auth; issue/revoke audit transactions; `pnpm check` (23 files/179 tests) | Passed locally; no Cloudflare secrets, runtime DB role, deployment, or external DB E2E |
+| 2026-08-24 | Account admission ceilings | Account/key-aware Durable Object state, legacy-state migration, multiple-key isolation tests, and `pnpm check` (23 files/183 tests) | Passed locally; no staging or production changes |
 
 ## Progress log
 
@@ -515,3 +540,5 @@ key lifecycle boundary. Production migration and backup policy remain separate R
 | 2026-08-24 | Selected Railway managed PostgreSQL as the system of record and kept PlanetScale as a future migration option | Confirm Railway region/backup policy and define the IAM schema and account ownership model |
 | 2026-08-24 | Recorded the Singapore Railway topology and implemented the initial IAM schema/migration locally | Apply the migration to development/test with explicit approval, then implement the database/key lifecycle boundary |
 | 2026-08-24 | Added Test DB Public TCP Access and applied and independently verified the IAM migration | Implement the direct Worker database access and API-key lifecycle boundary; keep production unmigrated |
+| 2026-08-24 | Implemented direct Worker database access and the initial API-key issue/auth/revoke boundary | Create a least-privilege dev/test runtime DB role and verify the flow from a real staging Worker after separate approval |
+| 2026-08-24 | Deferred development/test runtime role, staging secrets, and real Worker identity E2E while the operator is away; implemented fixed account request/concurrency ceilings | Implement account token/spend reservation and settlement; resume the recorded external IAM tasks when authorized |

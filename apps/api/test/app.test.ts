@@ -22,7 +22,7 @@ const RATE_LIMIT: AdmissionRateLimit = {
 };
 
 const allowingAdmissionClient: AdmissionClient = {
-	async acquire(_env, _keyId, leaseId) {
+	async acquire(_env, _accountId, _keyId, leaseId) {
 		return { leaseExpiresAt: TEST_LEASE_EXPIRES_AT, leaseId, ok: true, rateLimit: RATE_LIMIT };
 	},
 	async release() {
@@ -39,6 +39,7 @@ function testApp(options: NonNullable<Parameters<typeof createApp>[0]> = {}) {
 
 function env(overrides: Partial<CloudflareBindings> = {}): CloudflareBindings {
 	return {
+		SENKO_AUTH_MODE: "bootstrap",
 		SENKO_API_KEYS: "test-key,second-key",
 		SENKO_FAST_MODEL: MODEL_ID,
 		SENKO_MODELS: JSON.stringify([
@@ -73,6 +74,15 @@ describe("Senko API Worker", () => {
 		const response = await app.request("/v1/models", {}, env({ SENKO_API_KEYS: undefined }));
 		expect(response.status).toBe(503);
 		expect(await response.json()).toMatchObject({ error: { code: "configuration_error" } });
+	});
+
+	it("requires an explicit authentication mode instead of silently falling back", async () => {
+		const app = testApp();
+		const response = await app.request("/v1/models", {}, env({ SENKO_AUTH_MODE: undefined }));
+		expect(response.status).toBe(503);
+		expect(await response.json()).toMatchObject({
+			error: { code: "configuration_error", message: expect.stringContaining("SENKO_AUTH_MODE") },
+		});
 	});
 
 	it("returns the same authentication error for missing and invalid keys", async () => {
@@ -419,7 +429,7 @@ describe("Senko API Worker", () => {
 				.mockImplementation(async () => ({ leaseExpiresAt: Date.now() + LEASE_TTL_MS, ok: true }));
 			const app = createApp({
 				admissionClient: {
-					async acquire(_env, _keyId, leaseId) {
+					async acquire(_env, _accountId, _keyId, leaseId) {
 						return {
 							leaseExpiresAt: Date.now() + LEASE_TTL_MS,
 							leaseId,
@@ -594,7 +604,7 @@ describe("Senko API Worker", () => {
 		const release = vi.fn<AdmissionClient["release"]>().mockResolvedValue(true);
 		const app = createApp({
 			admissionClient: {
-				async acquire(_env, _keyId, leaseId) {
+				async acquire(_env, _accountId, _keyId, leaseId) {
 					return { leaseExpiresAt: TEST_LEASE_EXPIRES_AT, leaseId, ok: true, rateLimit: RATE_LIMIT };
 				},
 				release,
@@ -619,11 +629,13 @@ describe("Senko API Worker", () => {
 		expect(llmApi).not.toHaveBeenCalled();
 	});
 
-	it("attributes admission to a stable non-secret identifier for each API key", async () => {
+	it("uses each bootstrap key digest as its synthetic account and key identity", async () => {
+		const accountIds: string[] = [];
 		const keyIds: string[] = [];
 		const app = createApp({
 			admissionClient: {
-				async acquire(_env, keyId, leaseId) {
+				async acquire(_env, accountId, keyId, leaseId) {
+					accountIds.push(accountId);
 					keyIds.push(keyId);
 					return { leaseExpiresAt: TEST_LEASE_EXPIRES_AT, leaseId, ok: true, rateLimit: RATE_LIMIT };
 				},
@@ -652,6 +664,7 @@ describe("Senko API Worker", () => {
 		expect(keyIds).toHaveLength(2);
 		expect(keyIds[0]).toMatch(/^[a-f0-9]{64}$/);
 		expect(keyIds[0]).not.toBe(keyIds[1]);
+		expect(accountIds).toEqual(keyIds);
 		expect(keyIds).not.toContain("test-key");
 		expect(keyIds).not.toContain("second-key");
 	});

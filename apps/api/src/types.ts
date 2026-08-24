@@ -1,10 +1,16 @@
+import type { ApiKeyScope } from "./db/schema";
+
 export const API_PROTOCOLS = ["openai-completions", "openai-responses"] as const;
 
 export type ApiProtocol = (typeof API_PROTOCOLS)[number];
 
 export interface CloudflareBindings {
 	SENKO_ADMISSION?: DurableObjectNamespace;
+	SENKO_ADMIN_TOKEN?: string;
 	SENKO_API_KEYS?: string;
+	SENKO_API_KEY_HASH_SECRET_V1?: string;
+	SENKO_AUTH_MODE?: string;
+	SENKO_DATABASE_URL?: string;
 	SENKO_FAST_MODEL?: string;
 	SENKO_MODELS?: string;
 	LLM_API_BASE_URL?: string;
@@ -12,7 +18,9 @@ export interface CloudflareBindings {
 }
 
 export interface AppVariables {
+	accountId?: string;
 	apiKeyId: string;
+	apiKeyScopes: ApiKeyScope[];
 	requestId: string;
 }
 

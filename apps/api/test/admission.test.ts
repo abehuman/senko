@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { durableObjectAdmissionClient } from "../src/admission";
+import { AdmissionController, durableObjectAdmissionClient } from "../src/admission";
 import type { CloudflareBindings } from "../src/types";
 
 const LEASE_ID = `req_${"a".repeat(32)}`;
@@ -15,6 +15,37 @@ function envWithAdmissionFetch(fetch: (request: Request) => Promise<Response>): 
 }
 
 describe("Durable Object admission client", () => {
+	it("accepts database UUID account and key identities", async () => {
+		let storedState: unknown;
+		const controller = new AdmissionController({
+			storage: {
+				async transaction<T>(callback: (transaction: DurableObjectTransaction) => Promise<T>) {
+					return callback({
+						async get() {
+							return undefined;
+						},
+						async put(_key: string, value: unknown) {
+							storedState = value;
+						},
+					} as unknown as DurableObjectTransaction);
+				},
+			},
+		} as unknown as DurableObjectState);
+		const accountId = "00000000-0000-4000-8000-000000000001";
+		const keyId = "00000000-0000-4000-8000-000000000002";
+		const response = await controller.fetch(
+			new Request("https://senko-admission/acquire", {
+				body: JSON.stringify({ accountId, deadlineAt: Date.now() + 60_000, keyId, leaseId: LEASE_ID }),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({ leaseId: LEASE_ID, ok: true });
+		expect(storedState).toMatchObject({ leases: { [LEASE_ID]: { accountId, keyId } } });
+	});
+
 	it("retries idempotent release mutations", async () => {
 		const fetch = vi
 			.fn<(request: Request) => Promise<Response>>()

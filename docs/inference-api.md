@@ -28,16 +28,20 @@ Authorization: Bearer <senko-api-key>
 Invalid or missing credentials return `401`. Authorization failures must not reveal whether an account or key once
 existed. LLM API credentials remain Worker secrets and are never sent to clients.
 
-Until API-key issuance and account storage are designed, accepted client keys are loaded from the `SENKO_API_KEYS`
-Worker secret as a comma- or newline-delimited list. The Worker derives a SHA-256 identifier for the matched key so that
-admission limits can be isolated without storing or forwarding the key itself. This is an operational bootstrap, not
-the future account model.
+`SENKO_AUTH_MODE=database` authenticates account-owned keys through Railway PostgreSQL. Keys use a versioned
+`sk-senko-v1-...` format and are stored only as a public lookup ID, display prefix, and versioned HMAC. Authentication
+checks key, account, optional team, expiry, and endpoint scope on every request. Invalid, expired, revoked, or
+inactive-owner credentials use the same `401` response; a valid key without the required scope returns `403`.
 
-The initial Railway PostgreSQL IAM schema and generated migration now define users, accounts, teams, memberships,
-account-owned API keys, the `models:read`, `inference:chat`, and `inference:responses` scopes, rotation/expiry/revocation
-metadata, and administrative audit events. The initial migration is applied only to the development/test database. The
-Worker is not connected to PostgreSQL yet, so this schema does not change the bootstrap authentication behavior
-described above.
+`SENKO_AUTH_MODE=bootstrap` retains the comma/newline-delimited `SENKO_API_KEYS` secret only for local development and
+controlled migration. The mode is mandatory, and database failure never silently falls back to bootstrap keys. In
+bootstrap mode, the Worker derives a SHA-256 identifier for admission isolation without storing or forwarding the key.
+
+The Railway PostgreSQL IAM schema and generated migration define users, accounts, teams, memberships, account-owned API
+keys, the `models:read`, `inference:chat`, and `inference:responses` scopes, rotation/expiry/revocation metadata, and
+administrative audit events. The initial migration is applied only to the development/test database. Direct Worker
+connection and identity code are source-complete, but the Worker secret, least-privilege runtime role, deployed
+connection, and authenticated external test are not configured yet.
 
 ## Endpoints
 
@@ -94,12 +98,15 @@ normal protocol terminator as failed.
 
 The initial Worker generates `x-request-id` itself and preserves `retry-after` on compatible LLM API errors. Before
 forwarding inference, one globally named Durable Object enforces fixed safety
-ceilings of 20 requests per minute and 2 concurrent requests per API key, plus 120 requests per minute and 12 concurrent
-requests across the Worker. Rejections return `429 rate_limit_exceeded` with `Retry-After`. A lease has a 90-second TTL,
+ceilings of 20 requests per minute and 2 concurrent requests per API key, 60 requests per minute and 6 concurrent
+requests per account, plus 120 requests per minute and 12 concurrent requests across the Worker. Creating more API keys
+does not increase an account's ceiling. Rejections return `429 rate_limit_exceeded` with `Retry-After`. A lease has a
+90-second TTL,
 renews every 30 seconds while its request remains active, and can never outlive that request's absolute five-minute
 deadline. A transient renewal failure retries after five seconds. Inference is aborted only when the lease is confirmed
 missing or cannot be renewed before a ten-second expiry safety margin. Persisted leases from the previous schema are
-migrated without dropping concurrency ownership by using their existing expiry as the deadline. Release is idempotent and
+migrated without dropping concurrency ownership by using their existing expiry as the deadline and their key ID as a
+synthetic account ID. Release is idempotent and
 retried up to three times; final renewal/release failure emits a redacted structured warning. Billing and usage-based plan
 quotas remain deferred, but a client key cannot send unbounded request counts through the shared LLM API credential.
 
@@ -111,8 +118,9 @@ tool arguments, tool results, and generated text are not logged.
 
 ## Worker configuration
 
-`apps/api` reads secrets and text bindings through `c.env`; it does not use `process.env` or enable Node.js
-compatibility. `SENKO_MODELS` is a JSON array containing the public model metadata described above,
+`apps/api` reads secrets and text bindings through `c.env`; it does not use `process.env`. The current compatibility date
+enables Cloudflare's Node.js compatibility needed by the direct `pg` TCP driver without an extra flag. `SENKO_MODELS` is
+a JSON array containing the public model metadata described above,
 `SENKO_FAST_MODEL` selects one ID from that array, and `LLM_API_BASE_URL` plus the `LLM_API_KEY` secret define the LLM
 API that receives inference requests. `SENKO_ADMISSION` is the SQLite-backed Durable Object binding defined by
 `wrangler.jsonc`; the same configuration enables `enable_request_signal` and `keep_vars` so deployments receive client
@@ -121,8 +129,10 @@ See [`apps/api/README.md`](../apps/api/README.md) for the exact setup.
 
 ## Deferred work
 
-This contract does not yet define billing, account management, API-key issuance, multi-provider routing,
-per-member team plan assignment, user-supplied LLM API keys, dashboards, or production deployment policy. Those are
+This contract still does not define customer-facing account management, user identity/login, key listing or rotation,
+billing, multi-provider routing, per-member team plan assignment, user-supplied LLM API keys, dashboards, or production
+deployment policy. The current account/key management routes are protected by a separate R0 admin token for controlled
+provisioning and support account creation, one-time key issuance, and revocation. The remaining areas are
 part of the wider product direction where noted in [the product positioning](positioning.md). Their implementation,
 dependencies, verification evidence, and release gates are tracked in
 [the API production release project](api-production-release-plan.md).

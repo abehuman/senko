@@ -13,6 +13,8 @@ interface LlmApiConfig {
 	baseUrl: string;
 }
 
+export type AuthenticationMode = "bootstrap" | "database";
+
 let cachedCatalogKey: string | undefined;
 let cachedCatalog: ConfigResult<ModelCatalog> | undefined;
 
@@ -169,4 +171,15 @@ export function getLlmApiConfig(env: CloudflareBindings): ConfigResult<LlmApiCon
 	}
 	url.pathname = url.pathname.replace(/\/+$/, "");
 	return { ok: true, value: { apiKey, baseUrl: url.toString().replace(/\/$/, "") } };
+}
+
+export function getAuthenticationMode(env: CloudflareBindings): ConfigResult<AuthenticationMode> {
+	const mode = env.SENKO_AUTH_MODE?.trim();
+	if (mode === "bootstrap" || mode === "database") {
+		return { ok: true, value: mode };
+	}
+	return {
+		message: 'Set SENKO_AUTH_MODE to either "database" or "bootstrap". No implicit authentication fallback is used.',
+		ok: false,
+	};
 }

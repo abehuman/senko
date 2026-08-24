@@ -14,13 +14,20 @@ const ADMISSION_RENEW_ATTEMPT_TIMEOUT_MS = 5_000;
 const STATE_KEY = "admission";
 
 interface AdmissionRequest {
+	accountId?: string;
 	deadlineAt?: number;
 	keyId?: string;
 	leaseId: string;
 }
 
 export interface AdmissionClient {
-	acquire(env: CloudflareBindings, keyId: string, leaseId: string, deadlineAt: number): Promise<AdmissionResult>;
+	acquire(
+		env: CloudflareBindings,
+		accountId: string,
+		keyId: string,
+		leaseId: string,
+		deadlineAt: number,
+	): Promise<AdmissionResult>;
 	release(env: CloudflareBindings, leaseId: string): Promise<boolean>;
 	renew(env: CloudflareBindings, leaseId: string): Promise<AdmissionRenewalResult>;
 }
@@ -38,12 +45,16 @@ function isAdmissionRequest(value: unknown, pathname: string): value is Admissio
 		return false;
 	}
 	const request = value as Record<string, unknown>;
+	const stableIdentityId = (identifier: unknown): identifier is string =>
+		typeof identifier === "string" &&
+		(/^[a-f0-9]{64}$/.test(identifier) ||
+			/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(identifier));
 	return (
 		typeof request.leaseId === "string" &&
 		/^req_[a-f0-9]{32}$/.test(request.leaseId) &&
 		(pathname !== "/acquire" ||
-			(typeof request.keyId === "string" &&
-				/^[a-f0-9]{64}$/.test(request.keyId) &&
+			(stableIdentityId(request.accountId) &&
+				stableIdentityId(request.keyId) &&
 				typeof request.deadlineAt === "number" &&
 				Number.isSafeInteger(request.deadlineAt) &&
 				request.deadlineAt > 0))
@@ -109,7 +120,14 @@ export class AdmissionController implements DurableObject {
 			const decision = await this.state.storage.transaction(async (transaction) => {
 				const now = Date.now();
 				const current = (await transaction.get<AdmissionState>(STATE_KEY)) ?? emptyAdmissionState(now);
-				const result = acquireLease(current, input.keyId as string, input.leaseId, now, input.deadlineAt as number);
+				const result = acquireLease(
+					current,
+					input.accountId as string,
+					input.keyId as string,
+					input.leaseId,
+					now,
+					input.deadlineAt as number,
+				);
 				await transaction.put(STATE_KEY, result.state);
 				return result.decision;
 			});
@@ -224,11 +242,11 @@ async function renewAdmissionLease(env: CloudflareBindings, leaseId: string): Pr
 }
 
 export const durableObjectAdmissionClient: AdmissionClient = {
-	async acquire(env, keyId, leaseId, deadlineAt) {
+	async acquire(env, accountId, keyId, leaseId, deadlineAt) {
 		if (!env.SENKO_ADMISSION) {
 			return { ok: false, reason: "configuration_error", retryAfterSeconds: 1 };
 		}
-		const response = await callAdmissionController(env, "/acquire", { deadlineAt, keyId, leaseId });
+		const response = await callAdmissionController(env, "/acquire", { accountId, deadlineAt, keyId, leaseId });
 		if (!response?.ok) {
 			return { ok: false, reason: "admission_unavailable", retryAfterSeconds: 1 };
 		}

@@ -23,6 +23,7 @@ export const ACCOUNT_ROLES = ["owner", "admin", "billing", "member"] as const;
 export const TEAM_ROLES = ["admin", "member"] as const;
 export const API_KEY_STATUSES = ["active", "disabled", "revoked"] as const;
 export const API_KEY_SCOPES = ["models:read", "inference:chat", "inference:responses"] as const;
+export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
 export const AUDIT_ACTOR_TYPES = ["system", "user", "api_key"] as const;
 
 const createdAt = () => timestamp("created_at", { mode: "date", withTimezone: true }).defaultNow().notNull();

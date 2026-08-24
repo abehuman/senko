@@ -12,6 +12,13 @@ export interface AuthenticatedApiKey {
 	id: string;
 }
 
+export function bearerToken(authorization: string | undefined): string | undefined {
+	if (!authorization) {
+		return undefined;
+	}
+	return /^Bearer ([^\s]+)$/i.exec(authorization)?.[1];
+}
+
 function parseKeys(rawKeys: string): string[] {
 	return [
 		...new Set(
@@ -62,11 +69,11 @@ export async function authenticate(
 	if (!authorization || !rawKeys?.trim()) {
 		return undefined;
 	}
-	const match = /^Bearer ([^\s]+)$/i.exec(authorization);
-	if (!match?.[1]) {
+	const token = bearerToken(authorization);
+	if (!token) {
 		return undefined;
 	}
-	const [candidate, allowed] = await Promise.all([digest(match[1]), getKeyDigests(rawKeys)]);
+	const [candidate, allowed] = await Promise.all([digest(token), getKeyDigests(rawKeys)]);
 	let matchedId: string | undefined;
 	for (const key of allowed) {
 		if (equalDigest(candidate, key.digest)) {
@@ -74,4 +81,16 @@ export async function authenticate(
 		}
 	}
 	return matchedId ? { id: matchedId } : undefined;
+}
+
+export async function authenticateSecret(
+	authorization: string | undefined,
+	expectedToken: string | undefined,
+): Promise<boolean> {
+	const token = bearerToken(authorization);
+	if (!token || !expectedToken) {
+		return false;
+	}
+	const [candidate, expected] = await Promise.all([digest(token), digest(expectedToken)]);
+	return equalDigest(candidate, expected);
 }

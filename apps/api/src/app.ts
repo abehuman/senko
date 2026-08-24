@@ -6,10 +6,13 @@ import {
 	LEASE_RENEW_RETRY_INTERVAL_MS,
 	LEASE_RENEW_SAFETY_MARGIN_MS,
 } from "./admission-state";
-import { authenticate } from "./auth";
+import { authenticate, authenticateSecret } from "./auth";
 import { readBoundedJson } from "./body";
-import { getLlmApiConfig, getModelCatalog } from "./config";
+import { getAuthenticationMode, getLlmApiConfig, getModelCatalog } from "./config";
+import type { ApiKeyScope } from "./db/schema";
 import { apiError, applyRateLimitHeaders, responseHeaders } from "./http";
+import { type ApiKeyRecord, type IdentityResult, type IdentityService, postgresIdentityService } from "./identity";
+import { parseCreateAccountRequest, parseIssueApiKeyRequest, validUuid } from "./management";
 import {
 	boundedProviderBody,
 	createProviderRequestControl,
@@ -24,11 +27,18 @@ import type { ApiProtocol, AppEnv, LlmApiFetch, ModelDefinition } from "./types"
 
 interface CreateAppOptions {
 	admissionClient?: AdmissionClient;
+	identityService?: IdentityService;
 	llmApiFetch?: LlmApiFetch;
 	providerRequestLimits?: Partial<ProviderRequestLimits>;
 }
 
 export const MAX_OUTPUT_TOKENS_PER_REQUEST = 16_384;
+
+const REQUIRED_SCOPES = new Map<string, ApiKeyScope>([
+	["GET /v1/models", "models:read"],
+	["POST /v1/chat/completions", "inference:chat"],
+	["POST /v1/responses", "inference:responses"],
+]);
 
 function requestId(): string {
 	return `req_${crypto.randomUUID().replaceAll("-", "")}`;
@@ -81,6 +91,58 @@ function llmApiRequestHeaders(apiKey: string, id: string, stream: boolean): Head
 function withRateLimit(response: Response, rateLimit: AdmissionRateLimit): Response {
 	applyRateLimitHeaders(response.headers, rateLimit);
 	return response;
+}
+
+function identityFailureResponse<T>(result: Extract<IdentityResult<T>, { ok: false }>, requestId: string): Response {
+	if (result.reason === "configuration_error") {
+		return apiError({
+			code: "configuration_error",
+			message: result.message ?? "Configure the identity database before using this endpoint.",
+			requestId,
+			status: 503,
+			type: "server_error",
+		});
+	}
+	if (result.reason === "unavailable") {
+		console.warn(JSON.stringify({ event: "identity_database_unavailable", request_id: requestId }));
+		return apiError({
+			code: "identity_unavailable",
+			message: "Identity storage is temporarily unavailable.",
+			requestId,
+			status: 503,
+			type: "server_error",
+		});
+	}
+	return apiError({
+		code: result.reason === "conflict" ? "identity_conflict" : "not_found",
+		message:
+			result.reason === "conflict"
+				? "The account or team is not active."
+				: "The requested account, team, or API key does not exist.",
+		requestId,
+		status: result.reason === "conflict" ? 409 : 404,
+		type: "invalid_request_error",
+	});
+}
+
+function apiKeyResponse(key: ApiKeyRecord): Record<string, unknown> {
+	return {
+		account_id: key.accountId,
+		created_at: key.createdAt,
+		expires_at: key.expiresAt,
+		id: key.id,
+		key_prefix: key.keyPrefix,
+		name: key.name,
+		object: "api_key",
+		public_id: key.publicId,
+		scopes: key.scopes,
+		status: key.status,
+		team_id: key.teamId,
+	};
+}
+
+function noStoreHeaders(): Record<string, string> {
+	return { "cache-control": "no-store", pragma: "no-cache" };
 }
 
 function safeProviderField(value: unknown, fallback: string, maximumLength = 128): string {
@@ -255,6 +317,7 @@ function providerFailureResponse(
 export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
 	const app = new Hono<AppEnv>();
 	const admissionClient = options.admissionClient ?? durableObjectAdmissionClient;
+	const identityService = options.identityService ?? postgresIdentityService;
 	const callLlmApi = options.llmApiFetch ?? fetch;
 	const providerRequestLimits: ProviderRequestLimits = {
 		...DEFAULT_PROVIDER_REQUEST_LIMITS,
@@ -271,28 +334,213 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
 	app.get("/", (c) => c.json({ name: "Senko API", status: "ok" }));
 	app.get("/health", (c) => c.json({ status: "ok" }));
 
-	app.use("/v1/*", async (c, next) => {
+	app.use("/admin/v1/*", async (c, next) => {
 		const id = c.get("requestId");
-		if (!c.env.SENKO_API_KEYS?.trim()) {
+		const adminToken = c.env.SENKO_ADMIN_TOKEN?.trim();
+		if (!adminToken || new TextEncoder().encode(adminToken).byteLength < 32) {
 			return apiError({
 				code: "configuration_error",
-				message: "Set the SENKO_API_KEYS Worker secret before serving authenticated API requests.",
+				message: "Set SENKO_ADMIN_TOKEN to a secret containing at least 32 bytes before using management endpoints.",
 				requestId: id,
 				status: 503,
 				type: "server_error",
 			});
 		}
-		const apiKey = await authenticate(c.req.header("authorization"), c.env.SENKO_API_KEYS);
-		if (!apiKey) {
+		if (!(await authenticateSecret(c.req.header("authorization"), adminToken))) {
 			return apiError({
-				code: "invalid_api_key",
-				message: "Invalid authentication credentials.",
+				code: "invalid_admin_token",
+				message: "Invalid management authentication credentials.",
 				requestId: id,
 				status: 401,
 				type: "authentication_error",
 			});
 		}
-		c.set("apiKeyId", apiKey.id);
+		await next();
+	});
+
+	app.post("/admin/v1/accounts", async (c) => {
+		const id = c.get("requestId");
+		const body = await readBoundedJson(c.req.raw);
+		if (!body.ok) {
+			return apiError({
+				code: body.reason,
+				message:
+					body.reason === "request_too_large"
+						? "The request body exceeds the 1 MiB limit."
+						: "The request body must be valid JSON.",
+				requestId: id,
+				status: body.reason === "request_too_large" ? 413 : 400,
+				type: "invalid_request_error",
+			});
+		}
+		const input = parseCreateAccountRequest(body.value);
+		if (!input.ok) {
+			return apiError({ ...input, requestId: id, status: 400, type: "invalid_request_error" });
+		}
+		const created = await identityService.createAccount(c.env, { ...input.value, requestId: id });
+		if (!created.ok) {
+			return identityFailureResponse(created, id);
+		}
+		return c.json(
+			{
+				created_at: created.value.createdAt,
+				id: created.value.id,
+				name: created.value.name,
+				object: "account",
+				plan_key: created.value.planKey,
+				status: created.value.status,
+			},
+			201,
+			noStoreHeaders(),
+		);
+	});
+
+	app.post("/admin/v1/accounts/:accountId/api-keys", async (c) => {
+		const id = c.get("requestId");
+		const accountId = c.req.param("accountId");
+		if (!validUuid(accountId)) {
+			return apiError({
+				code: "invalid_account_id",
+				message: "accountId must be a UUID.",
+				param: "accountId",
+				requestId: id,
+				status: 400,
+				type: "invalid_request_error",
+			});
+		}
+		const body = await readBoundedJson(c.req.raw);
+		if (!body.ok) {
+			return apiError({
+				code: body.reason,
+				message:
+					body.reason === "request_too_large"
+						? "The request body exceeds the 1 MiB limit."
+						: "The request body must be valid JSON.",
+				requestId: id,
+				status: body.reason === "request_too_large" ? 413 : 400,
+				type: "invalid_request_error",
+			});
+		}
+		const input = parseIssueApiKeyRequest(body.value);
+		if (!input.ok) {
+			return apiError({ ...input, requestId: id, status: 400, type: "invalid_request_error" });
+		}
+		const issued = await identityService.issueApiKey(c.env, {
+			...input.value,
+			accountId,
+			requestId: id,
+		});
+		if (!issued.ok) {
+			return identityFailureResponse(issued, id);
+		}
+		return c.json(
+			{
+				...apiKeyResponse(issued.value),
+				key: issued.value.key,
+				warning: "Save this key now. It cannot be retrieved again.",
+			},
+			201,
+			noStoreHeaders(),
+		);
+	});
+
+	app.post("/admin/v1/accounts/:accountId/api-keys/:keyId/revoke", async (c) => {
+		const id = c.get("requestId");
+		const accountId = c.req.param("accountId");
+		const keyId = c.req.param("keyId");
+		if (!validUuid(accountId) || !validUuid(keyId)) {
+			return apiError({
+				code: "invalid_identifier",
+				message: "accountId and keyId must be UUIDs.",
+				requestId: id,
+				status: 400,
+				type: "invalid_request_error",
+			});
+		}
+		const revoked = await identityService.revokeApiKey(c.env, { accountId, keyId, requestId: id });
+		if (!revoked.ok) {
+			return identityFailureResponse(revoked, id);
+		}
+		return c.json(apiKeyResponse(revoked.value), 200, noStoreHeaders());
+	});
+
+	app.use("/v1/*", async (c, next) => {
+		const id = c.get("requestId");
+		const mode = getAuthenticationMode(c.env);
+		if (!mode.ok) {
+			return apiError({
+				code: "configuration_error",
+				message: mode.message,
+				requestId: id,
+				status: 503,
+				type: "server_error",
+			});
+		}
+		let apiKeyId: string;
+		let scopes: ApiKeyScope[];
+		if (mode.value === "bootstrap") {
+			if (!c.env.SENKO_API_KEYS?.trim()) {
+				return apiError({
+					code: "configuration_error",
+					message: "Set SENKO_API_KEYS when SENKO_AUTH_MODE is bootstrap.",
+					requestId: id,
+					status: 503,
+					type: "server_error",
+				});
+			}
+			const bootstrapKey = await authenticate(c.req.header("authorization"), c.env.SENKO_API_KEYS);
+			if (!bootstrapKey) {
+				return apiError({
+					code: "invalid_api_key",
+					message: "Invalid authentication credentials.",
+					requestId: id,
+					status: 401,
+					type: "authentication_error",
+				});
+			}
+			apiKeyId = bootstrapKey.id;
+			scopes = ["models:read", "inference:chat", "inference:responses"];
+		} else {
+			const databaseKey = await identityService.authenticate(c.env, c.req.header("authorization"));
+			if (!databaseKey.ok) {
+				if (databaseKey.reason === "configuration_error" || databaseKey.reason === "unavailable") {
+					return identityFailureResponse(databaseKey, id);
+				}
+				return apiError({
+					code: "invalid_api_key",
+					message: "Invalid authentication credentials.",
+					requestId: id,
+					status: 401,
+					type: "authentication_error",
+				});
+			}
+			apiKeyId = databaseKey.value.keyId;
+			scopes = databaseKey.value.scopes;
+			c.set("accountId", databaseKey.value.accountId);
+			const touch = identityService.touchLastUsed(c.env, databaseKey.value.keyId).then((result) => {
+				if (!result.ok) {
+					console.warn(JSON.stringify({ event: "api_key_last_used_update_failed", request_id: id }));
+				}
+			});
+			try {
+				c.executionCtx.waitUntil(touch);
+			} catch {
+				void touch;
+			}
+		}
+
+		const requiredScope = REQUIRED_SCOPES.get(`${c.req.method} ${c.req.path}`);
+		if (requiredScope && !scopes.includes(requiredScope)) {
+			return apiError({
+				code: "insufficient_scope",
+				message: `The API key does not grant the required ${requiredScope} scope.`,
+				requestId: id,
+				status: 403,
+				type: "permission_error",
+			});
+		}
+		c.set("apiKeyId", apiKeyId);
+		c.set("apiKeyScopes", scopes);
 		await next();
 	});
 
@@ -321,7 +569,9 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
 	const forward = async (c: Context<AppEnv>, protocol: ApiProtocol): Promise<Response> => {
 		const id = c.get("requestId");
 		const deadlineAt = Date.now() + providerRequestLimits.totalTimeoutMs;
-		const admission = await admissionClient.acquire(c.env, c.get("apiKeyId"), id, deadlineAt);
+		const keyId = c.get("apiKeyId");
+		const accountId = c.get("accountId") ?? keyId;
+		const admission = await admissionClient.acquire(c.env, accountId, keyId, id, deadlineAt);
 		if (!admission.ok) {
 			const configurationError = admission.reason === "configuration_error";
 			const unavailable = admission.reason === "admission_unavailable";

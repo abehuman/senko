@@ -9,12 +9,15 @@ separate operational step.
 
 ## API runtime
 
-The Worker exposes public root and health checks plus authenticated OpenAI-compatible routes under `/v1`. It validates
-client Bearer keys against the `SENKO_API_KEYS` Worker secret, resolves `fast` through a server-owned curated model
-catalog, replaces the alias before forwarding, and sends the request to one configured HTTPS LLM API. The Worker
-derives a non-secret SHA-256 identifier from each accepted key and acquires an inference lease from one globally named
-Durable Object before reading or forwarding the request. That controller enforces fixed per-key and Worker-wide request
-and concurrency ceilings across isolates. Requests larger than 1 MiB are rejected before JSON parsing. Output is capped
+The Worker exposes public root and health checks plus authenticated OpenAI-compatible routes under `/v1`. Its explicit
+authentication mode uses either account-owned Railway PostgreSQL keys or local/migration-only `SENKO_API_KEYS` bootstrap
+keys, with no automatic fallback. Database authentication checks lifecycle and endpoint scope, then resolves every
+accepted request to internal account/key IDs. It resolves `fast` through a server-owned curated model catalog, replaces
+the alias before forwarding, and sends the request to one configured HTTPS LLM API. The Worker acquires an inference
+lease for the resolved account/key IDs from one globally named Durable Object before reading or forwarding the request.
+Bootstrap keys use their non-secret digest as both a synthetic account and key ID. The controller enforces fixed
+per-key, per-account, and Worker-wide request and concurrency ceilings across isolates, so issuing more keys does not
+multiply an account's request capacity. Requests larger than 1 MiB are rejected before JSON parsing. Output is capped
 at 16,384 tokens or the model's lower declared limit, Chat Completions is restricted to one choice, provider responses are
 capped at 8 MiB, and individual SSE events are capped at 256 KiB. Protocol-specific top-level allowlists rebuild the LLM
 API request, force provider storage off, accept only client-defined function tools, reject unsupported hosted/stateful
@@ -26,25 +29,31 @@ no automatic generation retries, and streams compatible successful response bodi
 Admission leases have a 90-second TTL, renew every 30 seconds without exceeding the request's absolute deadline, and are
 released when the response body finishes or is cancelled. Transient renewal failures retry after five seconds; only a
 confirmed missing lease or failure to renew before the ten-second expiry safety margin aborts inference. Persisted leases
-from the previous schema retain their existing expiry as their migration deadline. Idempotent release calls retry three
+from the previous schema retain their existing expiry as their migration deadline and use their former key ID as a
+synthetic account ID until they expire. Idempotent release calls retry three
 times and final renewal/release failures generate redacted warnings. Compatible provider 4xx errors are reconstructed
 from only `message`, `type`, `code`, and `param`; provider account rate-limit headers and additional error metadata are not
 exposed.
 
-Configuration comes only from typed Cloudflare bindings. LLM API and client keys are secrets; model metadata, the
-`fast` target, and LLM API base URL are text variables; and admission state uses a SQLite-backed Durable Object. Wrangler
+Configuration comes only from typed Cloudflare bindings. LLM API credentials, database URL, API-key HMAC secret,
+management token, and bootstrap keys are secrets; the authentication mode, model metadata, `fast` target, and LLM API
+base URL are text variables; and admission state uses a SQLite-backed Durable Object. Wrangler
 preserves Dashboard-managed text variables during deploy and enables incoming request cancellation signals. Request
 forwarding does not copy the client Authorization or provider-routing headers, prompt data is not logged by application
 code, and responses receive a Worker-generated `x-request-id` plus Senko-owned rate-limit metadata. Billing,
-persistent account/key storage, usage-based plan quotas, and multi-provider routing remain outside this initial runtime.
+user login and customer-facing management, usage-based account quotas, and multi-provider routing remain outside this
+runtime.
 
-Railway managed PostgreSQL in Singapore is selected as the future system of record for persistent identity. Production
+Railway managed PostgreSQL in Singapore is the system of record for persistent identity. Production
 and development/test databases are separate services in the same Railway project and environment. The versioned Drizzle
 schema and generated migration define users, accounts, teams, memberships, account-owned API keys/scopes, and
-administrative audit events with composite account-boundary constraints. The initial database path uses the `pg` driver
-directly over Railway's public PostgreSQL endpoint. Connection pooling is deferred until measured latency or connection
-pressure justifies it. The initial migration is applied only to the development/test database; production is unmigrated
-and the Worker is not connected yet, so bootstrap key authentication remains the active runtime behavior.
+administrative audit events with composite account-boundary constraints. The Worker uses the `pg` driver directly over
+Railway's public PostgreSQL endpoint, creates and closes a bounded client per identity operation, and does not use a
+process-global pool. Account creation, one-time API-key issuance, and revocation use a separate management Bearer token
+and append an audit event in the same transaction. Raw keys are never persisted; request authentication uses public-ID
+lookup plus HMAC verification and coalesces non-blocking `last_used_at` updates. Connection pooling is deferred until
+measured latency or connection pressure justifies it. The initial migration is applied only to the development/test
+database; production is unmigrated, and runtime secrets/role plus live Worker connectivity remain unconfigured.
 
 ## Runtime flow
 
