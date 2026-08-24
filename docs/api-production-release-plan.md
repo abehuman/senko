@@ -143,7 +143,7 @@ Status: **In progress**
 - [x] Define a versioned Drizzle PostgreSQL schema and generated migration for users, accounts, teams, account/team
   memberships, account-owned API keys/scopes, and administrative audit events.
 - [x] Add schema tests for raw-key exclusion, initial scope restrictions, and composite account-boundary foreign keys.
-- [ ] Apply the migration to the development/test Railway Postgres service after explicit approval and verify the live
+- [x] Apply the migration to the development/test Railway Postgres service after explicit approval and verify the live
   schema independently.
 
 ### Data and key lifecycle
@@ -450,7 +450,7 @@ Exit criteria:
 
 ## Recommended first implementation slices
 
-1. **IAM foundation:** apply and verify the reviewed schema in development/test, add the Railway Postgres/Hyperdrive
+1. **IAM foundation:** apply and verify the reviewed schema in development/test, add the direct Railway PostgreSQL
    access boundary, implement hashed one-time keys, and migrate authentication behind an interface while preserving a
    controlled bootstrap path for local development.
 2. **Provider contract layer:** implement one adapter for both protocols, normalize terminal usage/model/error behavior,
@@ -476,6 +476,7 @@ key lifecycle boundary. Production migration and backup policy remain separate R
 | D-005 | TBD | Staging/production Wrangler and Cloudflare topology | Open | Must guarantee state and credential isolation |
 | D-006 | TBD | R2 supported models/providers/protocols/regions and beta terms | Open | Determines adapter and verification scope |
 | D-007 | TBD | R3 SLO and availability promise | Open | Determines redundancy and operational gates |
+| D-008 | 2026-08-24 | Start with direct `pg` connections from Workers to Railway PostgreSQL | Accepted | Defer connection pooling until measured latency or connection pressure justifies it |
 
 ## Risk register
 
@@ -488,6 +489,8 @@ key lifecycle boundary. Production migration and backup policy remain separate R
 | Staging accesses production state/secrets | Data or spend incident | ENV isolation and deployment checks | Open |
 | Provider price/catalog changes silently | Incorrect reservation or billing | GOV versioned pricing + reconciliation | Open |
 | Singleton Durable Object becomes a bottleneck | Availability/latency degradation | VER load thresholds + SCL partitioning | Open |
+| Direct PostgreSQL connections exhaust capacity or add latency | Authentication latency or database outage | Bounded clients, connection metrics, load tests, and threshold-triggered pooling | Open |
+| Public PostgreSQL TLS does not validate a public CA | Origin impersonation risk | Separate credentials and require a verified transport design before R2 | Open |
 | Billing webhook replay or reordering | Incorrect entitlements | OPS idempotent event processing and reconciliation | Open |
 | Lease/state migration loses ownership | Concurrency quota bypass | VER persistence/concurrency migration tests | Partially controlled |
 | Provider outage is invisible or routes badly | Customer outage | ADP health/circuits + OBS alerts + ENV canary | Open |
@@ -500,7 +503,8 @@ key lifecycle boundary. Production migration and backup policy remain separate R
 | 2026-08-23 | Production-release tracker | This document created from the reviewed gap list and current repository state | Planning only |
 | 2026-08-24 | Terminology update | Renamed the document and replaced ambiguous project wording | Documentation only |
 | 2026-08-24 | D-002 storage selection | Railway managed PostgreSQL selected; production and development/test database services separated | Decision recorded; connection and runtime settings not verified |
-| 2026-08-24 | IAM schema | Drizzle schema, generated `0000_iam_foundation.sql`, migration check, typecheck, and four schema tests | Passed locally; Railway migration not applied |
+| 2026-08-24 | IAM schema | Drizzle schema, generated `0000_iam_foundation.sql`, migration check, typecheck, and four schema tests | Passed locally |
+| 2026-08-24 | Development/test IAM migration | Target-ID guard; TLS session; one migration; 8 tables; 13 foreign keys; 27 checks; 23 indexes | Applied only to `Senko Test Postgres`; independent verification passed |
 
 ## Progress log
 
@@ -509,4 +513,5 @@ key lifecycle boundary. Production migration and backup policy remain separate R
 | 2026-08-23 | Established R0-R3 gates, nine workstreams, baseline status, dependencies, risks, and evidence rules | Resolve D-002 storage and the IAM account/key ownership model |
 | 2026-08-24 | Renamed the project and file to use direct production-release wording | Resolve D-002 storage and the IAM account/key ownership model |
 | 2026-08-24 | Selected Railway managed PostgreSQL as the system of record and kept PlanetScale as a future migration option | Confirm Railway region/backup policy and define the IAM schema and account ownership model |
-| 2026-08-24 | Recorded the Singapore Railway topology and implemented the initial IAM schema/migration locally | Review and apply the migration to development/test with explicit approval, then implement the database/key lifecycle boundary |
+| 2026-08-24 | Recorded the Singapore Railway topology and implemented the initial IAM schema/migration locally | Apply the migration to development/test with explicit approval, then implement the database/key lifecycle boundary |
+| 2026-08-24 | Added Test DB Public TCP Access and applied and independently verified the IAM migration | Implement the direct Worker database access and API-key lifecycle boundary; keep production unmigrated |

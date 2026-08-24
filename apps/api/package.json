@@ -8,16 +8,21 @@
 		"build": "pnpm db:check && wrangler deploy --dry-run --outdir dist",
 		"db:check": "drizzle-kit check",
 		"db:generate": "drizzle-kit generate",
+		"db:inspect": "node scripts/database.mjs inspect",
+		"db:migrate": "node scripts/database.mjs migrate",
+		"db:verify": "node scripts/database.mjs verify",
 		"deploy": "wrangler deploy --minify",
 		"dev": "wrangler dev",
 		"typecheck": "tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {
 		"drizzle-orm": "0.45.2",
-		"hono": "4.13.3"
+		"hono": "4.13.3",
+		"pg": "8.23.0"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "5.20260823.1",
+		"@types/pg": "8.23.1",
 		"drizzle-kit": "0.31.10",
 		"wrangler": "4.125.0"
 	}

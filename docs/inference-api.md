@@ -35,8 +35,9 @@ the future account model.
 
 The initial Railway PostgreSQL IAM schema and generated migration now define users, accounts, teams, memberships,
 account-owned API keys, the `models:read`, `inference:chat`, and `inference:responses` scopes, rotation/expiry/revocation
-metadata, and administrative audit events. The migration has not been applied and the Worker is not connected to
-PostgreSQL yet, so this schema does not change the bootstrap authentication behavior described above.
+metadata, and administrative audit events. The initial migration is applied only to the development/test database. The
+Worker is not connected to PostgreSQL yet, so this schema does not change the bootstrap authentication behavior
+described above.
 
 ## Endpoints
 

@@ -41,9 +41,10 @@ persistent account/key storage, usage-based plan quotas, and multi-provider rout
 Railway managed PostgreSQL in Singapore is selected as the future system of record for persistent identity. Production
 and development/test databases are separate services in the same Railway project and environment. The versioned Drizzle
 schema and generated migration define users, accounts, teams, memberships, account-owned API keys/scopes, and
-administrative audit events with composite account-boundary constraints. The migration has not been applied, and the
-Worker does not yet have a PostgreSQL/Hyperdrive binding, so bootstrap key authentication remains the active runtime
-behavior.
+administrative audit events with composite account-boundary constraints. The initial database path uses the `pg` driver
+directly over Railway's public PostgreSQL endpoint. Connection pooling is deferred until measured latency or connection
+pressure justifies it. The initial migration is applied only to the development/test database; production is unmigrated
+and the Worker is not connected yet, so bootstrap key authentication remains the active runtime behavior.
 
 ## Runtime flow
 

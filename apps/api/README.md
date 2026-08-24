@@ -47,8 +47,9 @@ pnpm --filter @senkocode/api db:generate
 pnpm --filter @senkocode/api db:check
 ```
 
-migrationはまだRailwayへ適用しておらず、Worker runtimeもPostgreSQLへ接続していません。現時点の認証は引き続き
-`SENKO_API_KEYS` bootstrapです。外部DBへのmigration適用は対象serviceを確認したうえで別途承認が必要です。
+初回migrationはdevelopment/test Railway Postgresへ適用・検証済みです。production DBには適用しておらず、Worker
+runtimeもPostgreSQLへ接続していません。現時点の認証は引き続き`SENKO_API_KEYS` bootstrapです。今後の外部DB
+migrationも対象serviceを確認したうえで別途承認が必要です。
 
 ## 安全上限
 

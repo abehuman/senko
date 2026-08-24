@@ -19,7 +19,7 @@ Production and development/test databases are separate Railway Postgres services
 environment. Both are currently in Singapore and use Railway serverless mode. The exact service IDs are operational
 configuration documented in the repository's `AGENTS.md`; they are not duplicated in public runtime configuration.
 
-## Generate and check migrations
+## Generate, check, and apply migrations
 
 From the repository root:
 
@@ -31,9 +31,38 @@ pnpm --filter @senkocode/api db:check
 `db:generate` updates generated migration artifacts from the typed schema. `db:check` validates the migration journal
 without connecting to Railway. The API build runs `db:check` before the Wrangler dry-run.
 
-There is deliberately no `db:migrate` script yet. Applying a migration changes an external database and requires an
-explicit target and approval. Development and test work must target the development/test Railway Postgres service;
-production migration is a separate release operation.
+The operational `db:inspect`, `db:migrate`, and `db:verify` commands require Railway's injected `DATABASE_PUBLIC_URL`
+plus expected Railway project, environment, and service IDs. They refuse to run unless all three expected IDs match the
+system IDs injected by Railway. Invoke them through `railway run --no-local` with explicit `--project`, `--environment`,
+and `--service` flags; never print or copy the injected database URL. For example:
+
+```sh
+SENKO_EXPECTED_RAILWAY_PROJECT_ID=<project-id> \
+SENKO_EXPECTED_RAILWAY_ENVIRONMENT_ID=<environment-id> \
+SENKO_EXPECTED_RAILWAY_SERVICE_ID=<development-test-service-id> \
+railway run --no-local \
+  --project <project-id> \
+  --environment <environment-id> \
+  --service <development-test-service-id> \
+  pnpm --filter @senkocode/api db:migrate
+```
+
+The migration command rejects unexpected public tables, uses bounded lock and statement timeouts, applies only pending
+generated migrations, and then verifies the table, foreign-key, check-constraint, index, and migration-history contract.
+Development and test work must target the development/test Railway Postgres service; production migration is a separate
+release operation requiring its own approval.
+
+The initial Worker database path will use `pg` directly. Runtime credentials will be stored as a Cloudflare secret and
+separated from the migration credential. Direct connection latency and connection counts must be load-tested before R2;
+connection pooling remains a threshold-triggered decision rather than an initial dependency.
+
+Railway's PostgreSQL image generates its own certificate. The public connection therefore uses encrypted libpq
+`sslmode=require` semantics and schema verification confirms that PostgreSQL reports TLS for the active session. This
+does not validate a public certificate authority; production credential and transport hardening remains an R2 gate.
+
+The initial migration was applied to the development/test Railway Postgres service on 2026-08-24. An independent live
+verification observed PostgreSQL 18.6, one migration, eight IAM tables, 13 foreign keys, 27 check constraints, 23
+indexes, and an encrypted TLS session. The production database has not been migrated.
 
 ## Security boundary
 
@@ -48,5 +77,5 @@ production migration is a separate release operation.
 - `updated_at` is application-managed; every mutation must update it in the same transaction.
 - `last_used_at` should be coalesced rather than updated on every inference request.
 
-The migration has not been applied to Railway, and the Worker still authenticates with bootstrap `SENKO_API_KEYS` until
-the database access and API-key lifecycle milestones are implemented.
+The Worker still authenticates with bootstrap `SENKO_API_KEYS` until the database access and API-key lifecycle milestones
+are implemented.
