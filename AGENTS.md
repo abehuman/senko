@@ -4,7 +4,7 @@ Update this doc if something is wrong/outdated.
 
 ## Project
 
-- This is a repo of senko, ai cli coding agent that works in mac/linux terminal aiming to be fastest.
+- This is a repo of senko, ai cli coding agent that works in mac/linux terminal aiming to be best for Japanese dev teams who want to optimize cost/stability of ai coding workflow by offering multi-model, multi-provider service.
 
 ## Documentation
 
@@ -33,3 +33,12 @@ thinking effort ui was too complicated so changed icon and text to simplify.`
 - Run `pnpm check` before handing off code changes.
 - Keep the CLI independent from Pi's `~/.pi` and project `.pi` configuration.
 - Do not add an inference API implementation under `apps/api` until that milestone is explicitly started. `apps/api` is only for users who wants to use Senko managed inference service.
+
+## Infra
+
+- Postgres Database is hosted on Railway.
+  - Project id: 366c6026-e485-4d4d-a3ea-399dc38410da
+  - Service id: e34d6b6a-df9d-432e-be71-b6ab131cd499
+  - Environment id: 79763594-b907-45b3-b76e-13b759b97237
+  - We have multiple Postgres on Railway so When development/test, use service id 93f9494a-0e1b-4177-b84d-b24ac9b88b5f for database.
+  - All are deployed as serverless mode (cold start) on Railway untill actual release.
