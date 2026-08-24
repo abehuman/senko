@@ -5,16 +5,20 @@
 	"description": "Senko managed inference API for Cloudflare Workers",
 	"type": "module",
 	"scripts": {
-		"build": "wrangler deploy --dry-run --outdir dist",
+		"build": "pnpm db:check && wrangler deploy --dry-run --outdir dist",
+		"db:check": "drizzle-kit check",
+		"db:generate": "drizzle-kit generate",
 		"deploy": "wrangler deploy --minify",
 		"dev": "wrangler dev",
 		"typecheck": "tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {
+		"drizzle-orm": "0.45.2",
 		"hono": "4.13.3"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "5.20260823.1",
+		"drizzle-kit": "0.31.10",
 		"wrangler": "4.125.0"
 	}
 }

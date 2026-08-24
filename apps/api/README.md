@@ -32,6 +32,24 @@ pnpm dev:api
 設定不備は、修正すべきbinding名を含む`503 configuration_error`として返します。
 `SENKO_ADMISSION`のbindingとSQLite migrationは`wrangler.jsonc`で定義済みです。
 
+## PostgreSQL IAM schema
+
+customer identityの正本にはSingapore regionのRailway managed PostgreSQLを使用します。productionと
+development/testは同じRailway project/environment内の別Postgres serviceです。開発・テストでは必ず
+development/test serviceを明示的に対象にします。
+
+型付きschemaは[`src/db/schema.ts`](src/db/schema.ts)、生成SQLは[`db/migrations`](db/migrations)、運用境界は
+[`db/README.md`](db/README.md)にあります。初回migrationはusers、accounts、teams、account/team membership、
+account-owned API key、scope、admin audit eventを定義します。raw API keyは保存しません。
+
+```sh
+pnpm --filter @senkocode/api db:generate
+pnpm --filter @senkocode/api db:check
+```
+
+migrationはまだRailwayへ適用しておらず、Worker runtimeもPostgreSQLへ接続していません。現時点の認証は引き続き
+`SENKO_API_KEYS` bootstrapです。外部DBへのmigration適用は対象serviceを確認したうえで別途承認が必要です。
+
 ## 安全上限
 
 推論エンドポイントは、APIキーのSHA-256 digestを非秘密の識別子として使い、単一のDurable Objectで次の上限を

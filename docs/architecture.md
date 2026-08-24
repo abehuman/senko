@@ -38,6 +38,13 @@ forwarding does not copy the client Authorization or provider-routing headers, p
 code, and responses receive a Worker-generated `x-request-id` plus Senko-owned rate-limit metadata. Billing,
 persistent account/key storage, usage-based plan quotas, and multi-provider routing remain outside this initial runtime.
 
+Railway managed PostgreSQL in Singapore is selected as the future system of record for persistent identity. Production
+and development/test databases are separate services in the same Railway project and environment. The versioned Drizzle
+schema and generated migration define users, accounts, teams, memberships, account-owned API keys/scopes, and
+administrative audit events with composite account-boundary constraints. The migration has not been applied, and the
+Worker does not yet have a PostgreSQL/Hyperdrive binding, so bootstrap key authentication remains the active runtime
+behavior.
+
 ## Runtime flow
 
 1. Resolve the interface locale from `--language`, `SENKO_LANGUAGE`, or the XDG configuration file. Without an

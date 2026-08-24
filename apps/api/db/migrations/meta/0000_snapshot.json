@@ -1,0 +1,1035 @@
+{
+	"id": "80f2fa31-1c14-4e63-bf91-66a42fd6ac23",
+	"prevId": "00000000-0000-0000-0000-000000000000",
+	"version": "7",
+	"dialect": "postgresql",
+	"tables": {
+		"public.account_memberships": {
+			"name": "account_memberships",
+			"schema": "",
+			"columns": {
+				"account_id": {
+					"name": "account_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"role": {
+					"name": "role",
+					"type": "varchar(16)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "varchar(16)",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'active'"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"account_memberships_user_status_idx": {
+					"name": "account_memberships_user_status_idx",
+					"columns": [
+						{
+							"expression": "user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"account_memberships_account_id_accounts_id_fk": {
+					"name": "account_memberships_account_id_accounts_id_fk",
+					"tableFrom": "account_memberships",
+					"tableTo": "accounts",
+					"columnsFrom": ["account_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"account_memberships_user_id_users_id_fk": {
+					"name": "account_memberships_user_id_users_id_fk",
+					"tableFrom": "account_memberships",
+					"tableTo": "users",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {
+				"account_memberships_pk": {
+					"name": "account_memberships_pk",
+					"columns": ["account_id", "user_id"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"account_memberships_role_check": {
+					"name": "account_memberships_role_check",
+					"value": "\"account_memberships\".\"role\" in ('owner', 'admin', 'billing', 'member')"
+				},
+				"account_memberships_status_check": {
+					"name": "account_memberships_status_check",
+					"value": "\"account_memberships\".\"status\" in ('active', 'disabled')"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.accounts": {
+			"name": "accounts",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"name": {
+					"name": "name",
+					"type": "varchar(160)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "varchar(16)",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'active'"
+				},
+				"plan_key": {
+					"name": "plan_key",
+					"type": "varchar(64)",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'beta'"
+				},
+				"suspended_at": {
+					"name": "suspended_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"accounts_status_idx": {
+					"name": "accounts_status_idx",
+					"columns": [
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"accounts_name_check": {
+					"name": "accounts_name_check",
+					"value": "length(btrim(\"accounts\".\"name\")) > 0"
+				},
+				"accounts_status_check": {
+					"name": "accounts_status_check",
+					"value": "\"accounts\".\"status\" in ('active', 'suspended', 'closed')"
+				},
+				"accounts_plan_key_check": {
+					"name": "accounts_plan_key_check",
+					"value": "\"accounts\".\"plan_key\" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'"
+				},
+				"accounts_suspension_check": {
+					"name": "accounts_suspension_check",
+					"value": "(\"accounts\".\"status\" = 'suspended' and \"accounts\".\"suspended_at\" is not null) or (\"accounts\".\"status\" <> 'suspended' and \"accounts\".\"suspended_at\" is null)"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.admin_audit_events": {
+			"name": "admin_audit_events",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"actor_type": {
+					"name": "actor_type",
+					"type": "varchar(16)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"actor_user_id": {
+					"name": "actor_user_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"actor_api_key_id": {
+					"name": "actor_api_key_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"action": {
+					"name": "action",
+					"type": "varchar(80)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"target_type": {
+					"name": "target_type",
+					"type": "varchar(64)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"target_id": {
+					"name": "target_id",
+					"type": "varchar(128)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"request_id": {
+					"name": "request_id",
+					"type": "varchar(64)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"metadata": {
+					"name": "metadata",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'{}'::jsonb"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"admin_audit_events_account_created_idx": {
+					"name": "admin_audit_events_account_created_idx",
+					"columns": [
+						{
+							"expression": "account_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"admin_audit_events_request_id_idx": {
+					"name": "admin_audit_events_request_id_idx",
+					"columns": [
+						{
+							"expression": "request_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"admin_audit_events_account_id_accounts_id_fk": {
+					"name": "admin_audit_events_account_id_accounts_id_fk",
+					"tableFrom": "admin_audit_events",
+					"tableTo": "accounts",
+					"columnsFrom": ["account_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"admin_audit_events_actor_user_fk": {
+					"name": "admin_audit_events_actor_user_fk",
+					"tableFrom": "admin_audit_events",
+					"tableTo": "account_memberships",
+					"columnsFrom": ["account_id", "actor_user_id"],
+					"columnsTo": ["account_id", "user_id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"admin_audit_events_actor_key_fk": {
+					"name": "admin_audit_events_actor_key_fk",
+					"tableFrom": "admin_audit_events",
+					"tableTo": "api_keys",
+					"columnsFrom": ["actor_api_key_id", "account_id"],
+					"columnsTo": ["id", "account_id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"admin_audit_events_actor_type_check": {
+					"name": "admin_audit_events_actor_type_check",
+					"value": "\"admin_audit_events\".\"actor_type\" in ('system', 'user', 'api_key')"
+				},
+				"admin_audit_events_actor_check": {
+					"name": "admin_audit_events_actor_check",
+					"value": "(\"admin_audit_events\".\"actor_type\" = 'system' and \"admin_audit_events\".\"actor_user_id\" is null and \"admin_audit_events\".\"actor_api_key_id\" is null) or (\"admin_audit_events\".\"actor_type\" = 'user' and \"admin_audit_events\".\"actor_user_id\" is not null and \"admin_audit_events\".\"actor_api_key_id\" is null) or (\"admin_audit_events\".\"actor_type\" = 'api_key' and \"admin_audit_events\".\"actor_user_id\" is null and \"admin_audit_events\".\"actor_api_key_id\" is not null)"
+				},
+				"admin_audit_events_action_check": {
+					"name": "admin_audit_events_action_check",
+					"value": "length(btrim(\"admin_audit_events\".\"action\")) > 0"
+				},
+				"admin_audit_events_target_type_check": {
+					"name": "admin_audit_events_target_type_check",
+					"value": "length(btrim(\"admin_audit_events\".\"target_type\")) > 0"
+				},
+				"admin_audit_events_metadata_object_check": {
+					"name": "admin_audit_events_metadata_object_check",
+					"value": "jsonb_typeof(\"admin_audit_events\".\"metadata\") = 'object'"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.api_key_scopes": {
+			"name": "api_key_scopes",
+			"schema": "",
+			"columns": {
+				"api_key_id": {
+					"name": "api_key_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"scope": {
+					"name": "scope",
+					"type": "varchar(64)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"api_key_scopes_account_idx": {
+					"name": "api_key_scopes_account_idx",
+					"columns": [
+						{
+							"expression": "account_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"api_key_scopes_key_account_fk": {
+					"name": "api_key_scopes_key_account_fk",
+					"tableFrom": "api_key_scopes",
+					"tableTo": "api_keys",
+					"columnsFrom": ["api_key_id", "account_id"],
+					"columnsTo": ["id", "account_id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {
+				"api_key_scopes_pk": {
+					"name": "api_key_scopes_pk",
+					"columns": ["api_key_id", "scope"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"api_key_scopes_scope_check": {
+					"name": "api_key_scopes_scope_check",
+					"value": "\"api_key_scopes\".\"scope\" in ('models:read', 'inference:chat', 'inference:responses')"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.api_keys": {
+			"name": "api_keys",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"team_id": {
+					"name": "team_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"name": {
+					"name": "name",
+					"type": "varchar(120)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"public_id": {
+					"name": "public_id",
+					"type": "varchar(32)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"key_prefix": {
+					"name": "key_prefix",
+					"type": "varchar(24)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"key_hash": {
+					"name": "key_hash",
+					"type": "char(64)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"hash_version": {
+					"name": "hash_version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 1
+				},
+				"status": {
+					"name": "status",
+					"type": "varchar(16)",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'active'"
+				},
+				"rotation_group_id": {
+					"name": "rotation_group_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"replaces_api_key_id": {
+					"name": "replaces_api_key_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_by_user_id": {
+					"name": "created_by_user_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"last_used_at": {
+					"name": "last_used_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"revoked_at": {
+					"name": "revoked_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"api_keys_public_id_unique": {
+					"name": "api_keys_public_id_unique",
+					"columns": [
+						{
+							"expression": "public_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"api_keys_key_hash_unique": {
+					"name": "api_keys_key_hash_unique",
+					"columns": [
+						{
+							"expression": "key_hash",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"api_keys_account_status_idx": {
+					"name": "api_keys_account_status_idx",
+					"columns": [
+						{
+							"expression": "account_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"api_keys_team_status_idx": {
+					"name": "api_keys_team_status_idx",
+					"columns": [
+						{
+							"expression": "team_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"api_keys_rotation_group_idx": {
+					"name": "api_keys_rotation_group_idx",
+					"columns": [
+						{
+							"expression": "rotation_group_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"api_keys_account_id_accounts_id_fk": {
+					"name": "api_keys_account_id_accounts_id_fk",
+					"tableFrom": "api_keys",
+					"tableTo": "accounts",
+					"columnsFrom": ["account_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"api_keys_team_account_fk": {
+					"name": "api_keys_team_account_fk",
+					"tableFrom": "api_keys",
+					"tableTo": "teams",
+					"columnsFrom": ["team_id", "account_id"],
+					"columnsTo": ["id", "account_id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"api_keys_creator_account_member_fk": {
+					"name": "api_keys_creator_account_member_fk",
+					"tableFrom": "api_keys",
+					"tableTo": "account_memberships",
+					"columnsFrom": ["account_id", "created_by_user_id"],
+					"columnsTo": ["account_id", "user_id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"api_keys_replaces_same_account_fk": {
+					"name": "api_keys_replaces_same_account_fk",
+					"tableFrom": "api_keys",
+					"tableTo": "api_keys",
+					"columnsFrom": ["replaces_api_key_id", "account_id"],
+					"columnsTo": ["id", "account_id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"api_keys_id_account_id_unique": {
+					"name": "api_keys_id_account_id_unique",
+					"nullsNotDistinct": false,
+					"columns": ["id", "account_id"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {
+				"api_keys_name_check": {
+					"name": "api_keys_name_check",
+					"value": "length(btrim(\"api_keys\".\"name\")) > 0"
+				},
+				"api_keys_public_id_check": {
+					"name": "api_keys_public_id_check",
+					"value": "\"api_keys\".\"public_id\" ~ '^[A-Za-z0-9_-]{16,32}$'"
+				},
+				"api_keys_prefix_check": {
+					"name": "api_keys_prefix_check",
+					"value": "length(btrim(\"api_keys\".\"key_prefix\")) > 0"
+				},
+				"api_keys_hash_check": {
+					"name": "api_keys_hash_check",
+					"value": "\"api_keys\".\"key_hash\" ~ '^[0-9a-f]{64}$'"
+				},
+				"api_keys_hash_version_check": {
+					"name": "api_keys_hash_version_check",
+					"value": "\"api_keys\".\"hash_version\" > 0"
+				},
+				"api_keys_status_check": {
+					"name": "api_keys_status_check",
+					"value": "\"api_keys\".\"status\" in ('active', 'disabled', 'revoked')"
+				},
+				"api_keys_expiry_check": {
+					"name": "api_keys_expiry_check",
+					"value": "\"api_keys\".\"expires_at\" is null or \"api_keys\".\"expires_at\" > \"api_keys\".\"created_at\""
+				},
+				"api_keys_last_used_check": {
+					"name": "api_keys_last_used_check",
+					"value": "\"api_keys\".\"last_used_at\" is null or \"api_keys\".\"last_used_at\" >= \"api_keys\".\"created_at\""
+				},
+				"api_keys_revocation_check": {
+					"name": "api_keys_revocation_check",
+					"value": "(\"api_keys\".\"status\" = 'revoked' and \"api_keys\".\"revoked_at\" is not null) or (\"api_keys\".\"status\" <> 'revoked' and \"api_keys\".\"revoked_at\" is null)"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.team_memberships": {
+			"name": "team_memberships",
+			"schema": "",
+			"columns": {
+				"team_id": {
+					"name": "team_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"role": {
+					"name": "role",
+					"type": "varchar(16)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "varchar(16)",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'active'"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"team_memberships_account_user_idx": {
+					"name": "team_memberships_account_user_idx",
+					"columns": [
+						{
+							"expression": "account_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"team_memberships_team_account_fk": {
+					"name": "team_memberships_team_account_fk",
+					"tableFrom": "team_memberships",
+					"tableTo": "teams",
+					"columnsFrom": ["team_id", "account_id"],
+					"columnsTo": ["id", "account_id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"team_memberships_account_member_fk": {
+					"name": "team_memberships_account_member_fk",
+					"tableFrom": "team_memberships",
+					"tableTo": "account_memberships",
+					"columnsFrom": ["account_id", "user_id"],
+					"columnsTo": ["account_id", "user_id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {
+				"team_memberships_pk": {
+					"name": "team_memberships_pk",
+					"columns": ["team_id", "user_id"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"team_memberships_role_check": {
+					"name": "team_memberships_role_check",
+					"value": "\"team_memberships\".\"role\" in ('admin', 'member')"
+				},
+				"team_memberships_status_check": {
+					"name": "team_memberships_status_check",
+					"value": "\"team_memberships\".\"status\" in ('active', 'disabled')"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.teams": {
+			"name": "teams",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"name": {
+					"name": "name",
+					"type": "varchar(160)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "varchar(16)",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'active'"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"teams_account_status_idx": {
+					"name": "teams_account_status_idx",
+					"columns": [
+						{
+							"expression": "account_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"teams_account_id_accounts_id_fk": {
+					"name": "teams_account_id_accounts_id_fk",
+					"tableFrom": "teams",
+					"tableTo": "accounts",
+					"columnsFrom": ["account_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"teams_id_account_id_unique": {
+					"name": "teams_id_account_id_unique",
+					"nullsNotDistinct": false,
+					"columns": ["id", "account_id"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {
+				"teams_name_check": {
+					"name": "teams_name_check",
+					"value": "length(btrim(\"teams\".\"name\")) > 0"
+				},
+				"teams_status_check": {
+					"name": "teams_status_check",
+					"value": "\"teams\".\"status\" in ('active', 'archived')"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.users": {
+			"name": "users",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"status": {
+					"name": "status",
+					"type": "varchar(16)",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'active'"
+				},
+				"display_name": {
+					"name": "display_name",
+					"type": "varchar(120)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"users_status_idx": {
+					"name": "users_status_idx",
+					"columns": [
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"users_status_check": {
+					"name": "users_status_check",
+					"value": "\"users\".\"status\" in ('active', 'disabled', 'deleted')"
+				},
+				"users_display_name_check": {
+					"name": "users_display_name_check",
+					"value": "\"users\".\"display_name\" is null or length(btrim(\"users\".\"display_name\")) > 0"
+				}
+			},
+			"isRLSEnabled": false
+		}
+	},
+	"enums": {},
+	"schemas": {},
+	"sequences": {},
+	"roles": {},
+	"policies": {},
+	"views": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	}
+}

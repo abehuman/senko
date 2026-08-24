@@ -33,6 +33,11 @@ Worker secret as a comma- or newline-delimited list. The Worker derives a SHA-25
 admission limits can be isolated without storing or forwarding the key itself. This is an operational bootstrap, not
 the future account model.
 
+The initial Railway PostgreSQL IAM schema and generated migration now define users, accounts, teams, memberships,
+account-owned API keys, the `models:read`, `inference:chat`, and `inference:responses` scopes, rotation/expiry/revocation
+metadata, and administrative audit events. The migration has not been applied and the Worker is not connected to
+PostgreSQL yet, so this schema does not change the bootstrap authentication behavior described above.
+
 ## Endpoints
 
 ### `GET /v1/models`
@@ -117,5 +122,6 @@ See [`apps/api/README.md`](../apps/api/README.md) for the exact setup.
 
 This contract does not yet define billing, account management, API-key issuance, multi-provider routing,
 per-member team plan assignment, user-supplied LLM API keys, dashboards, or production deployment policy. Those are
-part of the wider product direction where noted in [the product positioning](positioning.md), but require separate
-milestones and explicit operational decisions.
+part of the wider product direction where noted in [the product positioning](positioning.md). Their implementation,
+dependencies, verification evidence, and release gates are tracked in
+[the API production release project](api-production-release-plan.md).
