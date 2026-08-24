@@ -41,4 +41,4 @@ thinking effort ui was too complicated so changed icon and text to simplify.`
   - Service id: e34d6b6a-df9d-432e-be71-b6ab131cd499
   - Environment id: 79763594-b907-45b3-b76e-13b759b97237
   - We have multiple Postgres on same environment on same project so When development/test, only change service id 93f9494a-0e1b-4177-b84d-b24ac9b88b5f for database.
-  - All are deployed as serverless mode (cold start) on Railway untill actual release.
+  - All are deployed as serverless mode (cold start) on Railway until actual release.
