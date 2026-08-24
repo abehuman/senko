@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Update this doc if something is wrong/outdated.
+Update this doc if something is wrong, outdated, or need to be improved for future reference for developers.
 
 ## Project
 
@@ -35,8 +35,16 @@ thinking effort ui was too complicated so changed icon and text to simplify.`
 - Keep the CLI independent from Pi's `~/.pi` and project `.pi` configuration.
 - Do not add an inference API implementation under `apps/api` until that milestone is explicitly started. `apps/api` is only for users who wants to use Senko managed inference service.
 
-## Infra
+## `apps/api`
 
+Users can use Senko cli for any LLM API but Senko offer own API service. It is developed in `apps/api`.
+
+### Infra
+
+API:
+- Hono on Cloudflare Workers
+
+DB:
 - Postgres Database is hosted on Railway.
   - Project id: 366c6026-e485-4d4d-a3ea-399dc38410da
   - Service id: e34d6b6a-df9d-432e-be71-b6ab131cd499
