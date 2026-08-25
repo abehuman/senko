@@ -1,0 +1,19 @@
+{
+	"name": "senko-api",
+	"main": "test/fixtures/legacy-durable-object-worker.ts",
+	"compatibility_date": "2026-08-23",
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "SENKO_ADMISSION",
+				"class_name": "AdmissionController"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["AdmissionController"]
+		}
+	]
+}

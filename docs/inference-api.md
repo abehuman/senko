@@ -10,9 +10,11 @@ open-weight coding models. Model selection and routing prioritize cost, latency,
 catalog size. The product direction includes multiple managed inference routes so that one LLM provider outage or period
 of congestion does not stop a team's work.
 
-The initial implementation has one server-configured OpenAI-compatible LLM API and deterministic injected LLM API
-handlers for tests. Client requests cannot choose an arbitrary LLM provider; Senko owns the curated catalog and
-managed routing policy.
+The initial implementation has trusted, server-configured OpenAI-compatible provider destinations, protocol-specific
+response adapters, deterministic multi-route priority selection, and route-keyed provider capacity/circuit state.
+Client requests cannot choose an arbitrary LLM provider; Senko owns the curated catalog and managed routing policy.
+Capacity or circuit-open routes can be skipped before forwarding, while real-provider redundancy and post-attempt
+fallback remain unverified and disabled respectively.
 
 The service exposes OpenAI-compatible streaming interfaces so Senko and other standard clients can use it without a
 proprietary transport.
@@ -37,13 +39,34 @@ inactive-owner credentials use the same `401` response; a valid key without the 
 controlled migration. The mode is mandatory, and database failure never silently falls back to bootstrap keys. In
 bootstrap mode, the Worker derives a SHA-256 identifier for admission isolation without storing or forwarding the key.
 
-The Railway PostgreSQL IAM schema and generated migration define users, accounts, teams, memberships, account-owned API
+The Railway PostgreSQL schema and generated migrations define users, accounts, teams, memberships, account-owned API
 keys, the `models:read`, `inference:chat`, and `inference:responses` scopes, rotation/expiry/revocation metadata, and
-administrative audit events. The initial migration is applied only to the development/test database. Direct Worker
+administrative audit events, plus account/API-key usage limits, aggregate buckets, immutable provider attempts,
+append-only usage events, and content-free final request envelopes independent of usage reservation. The initial IAM migration is applied only to the development/test database; the usage and request-trace migrations have not
+been applied to a live database. Direct Worker
 connection and identity code are source-complete, but the Worker secret, least-privilege runtime role, deployed
 connection, and authenticated external test are not configured yet.
 
+The protected R0 operator boundary can create accounts, list bounded account metadata, create account-owned teams, list and archive/reactivate teams,
+suspend/reactivate an account, and issue, list, rotate, and revoke account-owned API keys. Account/team suspension takes
+effect for new authentication after the transaction commits; it does not forcibly terminate requests already
+authenticated or forwarded. Team archive is reversible and does not revoke its keys, so reactivation restores any
+otherwise-valid team keys. Customer users, memberships, administrative roles, and entitlement management remain R2
+work and must replace the global operator credential before customer self-service administration.
+
+The same R0 boundary exposes bounded account-owned administrative audit history. Responses contain only the event ID,
+account ID, actor type, action, target type/ID, Senko request ID, and timestamp. Stored JSON metadata and actor user/API
+key identifiers are deliberately excluded. An allowlist makes unreviewed event shapes fail closed instead of silently
+becoming externally visible. Customer-scoped audit access remains part of the future role model.
+
 ## Endpoints
+
+### `GET /openapi.json`
+
+Returns the source-controlled OpenAPI 3.1 contract without authentication. The document distinguishes account-owned
+Senko API keys from the separate operator credential, declares the required inference scope per operation, and keeps
+request schemas aligned with the runtime top-level allowlists. A production URL is not claimed until the Worker and
+custom domain are deployed through the separately approved release process.
 
 ### `GET /v1/models`
 
@@ -74,6 +97,14 @@ Senko CLI. Unknown fields are rejected. Provider-side storage, background reques
 conversation/previous-response continuation, long cache-retention selection, hosted files, hosted tools, and input
 modalities not declared by the selected model are not available. `model`, output ceilings, `n`, and `store: false` are
 server-owned values. Client `OpenAI-Organization` and `OpenAI-Project` headers are never forwarded.
+
+Successful provider JSON is not forwarded unchanged. The adapter validates completed Chat Completions and terminal
+completed/incomplete/failed Responses core shapes, rebuilds allowed top-level fields, and replaces provider-reported model names with the
+resolved Senko model ID. Streaming data is buffered to event boundaries and re-emitted only after JSON, known event
+type, core chunk/response shape, and protocol terminator validation. Unknown, malformed, or unterminated streams are
+closed as failed. Provider redirects are rejected instead of forwarding the provider credential or customer request
+body to an origin outside the trusted registry; full field-level tool/reasoning fixtures for each eventual provider route
+remain pending.
 
 ## Errors and operational metadata
 
@@ -107,32 +138,69 @@ deadline. A transient renewal failure retries after five seconds. Inference is a
 missing or cannot be renewed before a ten-second expiry safety margin. Persisted leases from the previous schema are
 migrated without dropping concurrency ownership by using their existing expiry as the deadline and their key ID as a
 synthetic account ID. Release is idempotent and
-retried up to three times; final renewal/release failure emits a redacted structured warning. Billing and usage-based plan
-quotas remain deferred, but a client key cannot send unbounded request counts through the shared LLM API credential.
+retried up to three times; final renewal/release failure emits a redacted structured warning.
+
+For database-authenticated inference, the selected model must have versioned currency pricing and the account must have
+explicit minute-token, maximum-request-cost, daily-cost, and monthly-cost limits. The Worker atomically reserves the
+maximum estimated cost before provider forwarding. It settles input/output usage only after a terminal Chat Completions
+usage chunk plus `[DONE]`, or a validated terminal Responses event/response with usage, and releases unused capacity.
+Missing usage, unconfirmed completion, non-2xx responses, and other uncertain outcomes conservatively settle the full
+reservation. Non-2xx reservations are not released until a provider adapter can prove a pre-generation rejection.
+Expired reservations are claimed from an expiry-indexed pending queue with `FOR UPDATE SKIP LOCKED` and conservatively
+finalized in one bounded transaction by a five-minute scheduled reconciliation. Multiple keys share the same account
+buckets. An operator may additionally configure a narrower token/spend policy for an individual account-owned key; it
+must use the account currency and cannot exceed any account ceiling. Reservation, terminal settlement, and expiry repair
+lock and update the account buckets before the optional key buckets in the same transaction. An unconfigured key uses
+only the account policy. Cache/reasoning-specific pricing, provider-invoice reconciliation, and live concurrency/load
+evidence remain deferred.
 
 The Worker enables Cloudflare's incoming request signal and combines it with server-owned deadlines: 60 seconds to LLM
 API response headers, 45 seconds without a response-body chunk, and five minutes total. It caps every LLM API response at
-8 MiB and each SSE event at 256 KiB. It never silently retries an LLM generation. Application warning logs currently cover
-admission renewal/release failure and contain only an event name and request ID; authorization headers, prompt content,
-tool arguments, tool results, and generated text are not logged.
+8 MiB and each SSE event at 256 KiB. It never silently retries an LLM generation. Versioned operational events correlate
+request, authentication, admission, route selection, provider headers/first byte/first output delta/completion, and usage reservation/
+settlement by request ID. Their runtime allowlist contains internal account/key IDs, Senko model, protocol, attempt,
+stable route ID, classified outcome/failure, status, timings, tokens, and reserved/settled cost only. Versioned events
+also cover admission renewal/release failure and scheduled usage reconciliation. Authorization headers, raw keys, provider credentials/model IDs, prompt
+content, tool arguments/results, and generated text are not logged.
 
 ## Worker configuration
 
 `apps/api` reads secrets and text bindings through `c.env`; it does not use `process.env`. The current compatibility date
 enables Cloudflare's Node.js compatibility needed by the direct `pg` TCP driver without an extra flag. `SENKO_MODELS` is
 a JSON array containing the public model metadata described above,
-`SENKO_FAST_MODEL` selects one ID from that array, and `LLM_API_BASE_URL` plus the `LLM_API_KEY` secret define the LLM
-API that receives inference requests. `SENKO_ADMISSION` is the SQLite-backed Durable Object binding defined by
+`SENKO_FAST_MODEL` selects one ID from that array. `SENKO_PROVIDER_ROUTES` defines validated model/protocol routes,
+priorities, stable route IDs, upstream model mappings, trusted destinations, and provider RPM/TPM/concurrency capacity.
+Trusted destinations fix the HTTPS origin and dedicated secret binding in source. Route choice is deterministic by priority
+and route ID, then skips circuit-open or capacity-exhausted candidates before provider forwarding. If it is absent,
+`LLM_API_BASE_URL` plus `LLM_API_KEY` provide a bootstrap-mode legacy migration path; database mode rejects that unmanaged
+path. No provider request is retried after forwarding begins.
+`SENKO_ADMISSION` and per-route `SENKO_PROVIDER_POOLS` are SQLite-backed Durable Object bindings defined by
 `wrangler.jsonc`; the same configuration enables `enable_request_signal` and `keep_vars` so deployments receive client
-cancellation and preserve Dashboard-managed text bindings.
+cancellation and preserve Dashboard-managed text bindings. It explicitly disables `workers_dev` and preview URLs.
+The admin-token-protected `GET /admin/v1/dependency-health` verifies database-mode configuration, identity/ledger schema,
+admission, and route-keyed provider-pool dependencies without sending a generation to a provider; public `/health`
+remains liveness only. `SENKO_INFERENCE_ENABLED` must be explicitly set to `true` to serve inference;
+`false` is a global emergency stop, and missing, empty, or invalid values fail closed before admission or provider
+forwarding.
+The same R0 operator boundary protects `GET /admin/v1/requests/{requestId}`, a bounded lookup of the final authenticated
+customer API request envelope plus at most 16 provider attempts and their routing/reservation/ledger metadata. The
+envelope is persisted in the background independently of usage reservation, so authenticated pre-reservation failures
+are traceable after the write completes. Streaming envelopes are finalized after terminal/cancel/error classification,
+not when response headers are returned. Unauthenticated traffic remains in structured events and does not cause a
+support-database write. The query and response schema exclude prompt/generated/tool content, authorization values,
+plaintext API keys, and key hashes, and the response is never cacheable.
 See [`apps/api/README.md`](../apps/api/README.md) for the exact setup.
 
 ## Deferred work
 
-This contract still does not define customer-facing account management, user identity/login, key listing or rotation,
-billing, multi-provider routing, per-member team plan assignment, user-supplied LLM API keys, dashboards, or production
-deployment policy. The current account/key management routes are protected by a separate R0 admin token for controlled
-provisioning and support account creation, one-time key issuance, and revocation. The remaining areas are
+This contract still does not define customer-facing account management, user identity/login, customer administration
+roles, billing, real-provider contract-tested redundancy, latency/cost-aware routing, post-attempt fallback,
+per-member team plan assignment, user-supplied LLM API keys, dashboards, or production deployment policy. The current
+account/key management routes are protected by a separate R0 admin token for controlled provisioning and support
+account creation, one-time key issuance, bounded metadata listing, overlapping rotation, and revocation. Rotation keeps
+the source key active until an explicit revoke so clients can move without an outage window. When the source key has an
+optional usage-limit policy, rotation copies that policy atomically to the replacement key; prior per-key bucket usage
+is not copied. The remaining areas are
 part of the wider product direction where noted in [the product positioning](positioning.md). Their implementation,
 dependencies, verification evidence, and release gates are tracked in
 [the API production release project](api-production-release-plan.md).

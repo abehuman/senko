@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AdmissionController, durableObjectAdmissionClient } from "../src/admission";
+import { AdmissionController, checkAdmissionDependency, durableObjectAdmissionClient } from "../src/admission";
 import type { CloudflareBindings } from "../src/types";
 
 const LEASE_ID = `req_${"a".repeat(32)}`;
@@ -8,13 +8,27 @@ function envWithAdmissionFetch(fetch: (request: Request) => Promise<Response>): 
 	return {
 		SENKO_ADMISSION: {
 			getByName() {
-				return { fetch };
+				return {
+					fetch(input: RequestInfo | URL, init?: RequestInit) {
+						return fetch(input instanceof Request ? input : new Request(input, init));
+					},
+				};
 			},
 		} as unknown as DurableObjectNamespace,
 	};
 }
 
 describe("Durable Object admission client", () => {
+	it("checks the bound controller without acquiring a lease", async () => {
+		const get = vi.fn().mockResolvedValue(undefined);
+		const controller = new AdmissionController({ storage: { get } } as unknown as DurableObjectState);
+		const fetch = vi.fn((request: Request) => controller.fetch(request));
+
+		await expect(checkAdmissionDependency(envWithAdmissionFetch(fetch))).resolves.toBe(true);
+		expect(fetch).toHaveBeenCalledOnce();
+		expect(get).toHaveBeenCalledWith("admission");
+	});
+
 	it("accepts database UUID account and key identities", async () => {
 		let storedState: unknown;
 		const controller = new AdmissionController({

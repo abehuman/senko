@@ -12,8 +12,11 @@ separate operational step.
 The Worker exposes public root and health checks plus authenticated OpenAI-compatible routes under `/v1`. Its explicit
 authentication mode uses either account-owned Railway PostgreSQL keys or local/migration-only `SENKO_API_KEYS` bootstrap
 keys, with no automatic fallback. Database authentication checks lifecycle and endpoint scope, then resolves every
-accepted request to internal account/key IDs. It resolves `fast` through a server-owned curated model catalog, replaces
-the alias before forwarding, and sends the request to one configured HTTPS LLM API. The Worker acquires an inference
+accepted request to internal account/key IDs. It resolves `fast` through a server-owned curated model catalog, then
+selects a validated provider route deterministically by model/protocol, numeric priority, and stable route ID.
+Each route maps the Senko catalog model to an upstream model and names a trusted destination whose HTTPS origin and dedicated
+Worker secret binding are fixed in source. Explicit routes also declare provider RPM, TPM, and concurrency capacity. The
+legacy single-route variables remain only as a bootstrap-mode migration/local path and are rejected in database mode. The Worker acquires an inference
 lease for the resolved account/key IDs from one globally named Durable Object before reading or forwarding the request.
 Bootstrap keys use their non-secret digest as both a synthetic account and key ID. The controller enforces fixed
 per-key, per-account, and Worker-wide request and concurrency ceilings across isolates, so issuing more keys does not
@@ -24,7 +27,16 @@ API request, force provider storage off, accept only client-defined function too
 features, and never forward client organization/project routing headers. Together with the request ceilings, those
 constraints provide finite input and output exposure for the shared LLM API credential. The Worker combines Cloudflare's
 incoming request signal with 60-second response-header, 45-second stream-idle, and five-minute total deadlines, performs
-no automatic generation retries, and streams compatible successful response bodies without buffering.
+no automatic generation retries, and validates/normalizes successful provider JSON and SSE before emitting only the
+published response fields.
+
+Before an explicit route is forwarded, a second Durable Object namespace uses one object per stable route ID to reserve
+provider RPM, estimated TPM, and concurrency independently from customer admission and usage quota. A route at capacity or
+with an open circuit is skipped before any provider request starts; the next deterministic candidate may be selected without
+duplicating generation. Five consecutive route failures open the circuit for 30 seconds, after which only one half-open probe
+is admitted. Provider-pool leases use the same renewable, deadline-bounded lifecycle as inference admission. Capacity is
+refunded when a downstream customer usage check rejects the request before provider forwarding. Once provider forwarding
+starts, Senko never retries or changes route.
 
 Admission leases have a 90-second TTL, renew every 30 seconds without exceeding the request's absolute deadline, and are
 released when the response body finishes or is cancelled. Transient renewal failures retry after five seconds; only a
@@ -35,16 +47,22 @@ times and final renewal/release failures generate redacted warnings. Compatible 
 from only `message`, `type`, `code`, and `param`; provider account rate-limit headers and additional error metadata are not
 exposed.
 
-Configuration comes only from typed Cloudflare bindings. LLM API credentials, database URL, API-key HMAC secret,
-management token, and bootstrap keys are secrets; the authentication mode, model metadata, `fast` target, and LLM API
-base URL are text variables; and admission state uses a SQLite-backed Durable Object. Wrangler
+Configuration comes only from typed Cloudflare bindings. Provider credentials, database URL, API-key HMAC secret,
+management token, bootstrap keys, and fixed provider-destination keys are secrets; the authentication mode, model metadata,
+`fast` target, and route/model/capacity policy are text variables; admission and per-route provider-pool state use
+SQLite-backed Durable Objects. Wrangler
 preserves Dashboard-managed text variables during deploy and enables incoming request cancellation signals. Request
-forwarding does not copy the client Authorization or provider-routing headers, prompt data is not logged by application
-code, and responses receive a Worker-generated `x-request-id` plus Senko-owned rate-limit metadata. Billing,
-user login and customer-facing management, usage-based account quotas, and multi-provider routing remain outside this
-runtime.
+forwarding does not copy the client Authorization or provider-routing headers. A versioned operational-event allowlist
+records internal IDs, Senko model/route identifiers, outcomes, failure categories, timings, tokens, and reserved cost;
+it has no fields for prompt/generated content, tool payloads, raw keys, credentials, or upstream model IDs. Responses
+receive a Worker-generated `x-request-id` plus Senko-owned rate-limit metadata. Billing, user login/customer-facing
+management, provider latency/cost-aware routing and post-attempt fallback, dashboards, and alerts remain outside this runtime.
+The public `/health` endpoint checks only Worker liveness. An admin-token-protected `/admin/v1/dependency-health` endpoint
+checks production-mode configuration, identity and usage-ledger tables, the global admission object, and every distinct
+configured provider-pool object without contacting a provider or returning connection/error details. External provider
+availability remains a separate bounded canary concern.
 
-Railway managed PostgreSQL in Singapore is the system of record for persistent identity. Production
+Railway managed PostgreSQL in Singapore is the system of record for persistent identity and base usage accounting. Production
 and development/test databases are separate services in the same Railway project and environment. The versioned Drizzle
 schema and generated migration define users, accounts, teams, memberships, account-owned API keys/scopes, and
 administrative audit events with composite account-boundary constraints. The Worker uses the `pg` driver directly over
@@ -54,6 +72,9 @@ and append an audit event in the same transaction. Raw keys are never persisted;
 lookup plus HMAC verification and coalesces non-blocking `last_used_at` updates. Connection pooling is deferred until
 measured latency or connection pressure justifies it. The initial migration is applied only to the development/test
 database; production is unmigrated, and runtime secrets/role plus live Worker connectivity remain unconfigured.
+Replacement keys inherit an optional source-key usage-limit policy during the rotation transaction while starting with
+empty per-key aggregate buckets. Rotation, policy updates, and reservations share an account-policy-first lock order so
+concurrent rotation cannot publish an unrestricted replacement key or introduce a key-policy lock cycle.
 
 ## Runtime flow
 

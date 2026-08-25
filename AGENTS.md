@@ -17,6 +17,12 @@ Update this doc if something is wrong, outdated, or need to be improved for futu
   - `docs/commands.md`: slash-command behavior, implementation status, and research links.
   - `docs/inference-api.md`: future managed inference service contract.
   - `docs/api-production-release-plan.md`: managed API production-release workstreams, decisions, gates, and evidence.
+  - `docs/api-load-testing.md`: bounded load-profile definitions, safety gates, execution, and evidence requirements.
+  - `docs/api-deployment-configuration.md`: Worker binding inventory, environment isolation, and secret rotation boundary.
+  - `docs/api-provider-canary.md`: bounded provider canary safety boundary and operator usage.
+  - `docs/api-security-threat-model.md`: managed API assets, trust boundaries, controls, residual risks, and review triggers.
+  - `docs/api-compatibility-policy.md`: proposed API compatibility, versioning, alias, and deprecation rules.
+  - `docs/api-operations-runbook.md`: content-free incident, outage, rotation, reconciliation, and rollback procedures.
   - `docs/releasing.md`: package release process.
 - When implementation changes behavior, configuration, command status, architecture, the API contract, or the release workflow, update the relevant main documentation in the same change and keep overlapping descriptions consistent.
 

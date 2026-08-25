@@ -1,10 +1,15 @@
 # Copy this file to .dev.vars and replace every example value before running pnpm dev:api.
 SENKO_AUTH_MODE=bootstrap
 SENKO_API_KEYS=local-senko-key
+SENKO_INFERENCE_ENABLED=true
 SENKO_FAST_MODEL=provider/coding-model
 SENKO_MODELS='[{"id":"provider/coding-model","context_window":131072,"max_output_tokens":16384,"supported_protocols":["openai-completions","openai-responses"],"input_modalities":["text"],"reasoning":true}]'
 LLM_API_BASE_URL=https://api.example.com/v1
 LLM_API_KEY=llm-api-key
+
+# Optional explicit multi-route configuration. When set, this replaces LLM_API_BASE_URL/LLM_API_KEY.
+# SENKO_PROVIDER_ROUTES='[{"id":"primary","destination":"openai","priority":0,"capacity":{"max_concurrent_requests":10,"requests_per_minute":120,"tokens_per_minute":200000},"supported_protocols":["openai-completions","openai-responses"],"models":{"provider/coding-model":"provider/coding-model"}}]'
+# SENKO_PROVIDER_KEY_OPENAI=replace-with-provider-api-key
 
 # Database identity and management endpoints are optional while local inference uses bootstrap mode.
 # Use the dedicated runtime database credential, not DATABASE_PUBLIC_URL used by migration commands.

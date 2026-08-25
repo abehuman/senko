@@ -53,12 +53,20 @@ describe("database operation target guard", () => {
 	it("verifies the complete initial public-table contract", () => {
 		expect(EXPECTED_TABLES).toEqual([
 			"account_memberships",
+			"account_usage_buckets",
+			"account_usage_limits",
 			"accounts",
 			"admin_audit_events",
 			"api_key_scopes",
+			"api_key_usage_buckets",
+			"api_key_usage_limits",
 			"api_keys",
+			"request_traces",
 			"team_memberships",
 			"teams",
+			"usage_attempts",
+			"usage_ledger_entries",
+			"usage_pending_reservations",
 			"users",
 		]);
 	});

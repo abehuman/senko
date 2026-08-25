@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Planning |
+| Status | In progress |
 | Current release stage | R0 (local implementation only) |
 | Baseline commit | `2a04dd2` |
-| Last updated | 2026-08-24 |
+| Last updated | 2026-08-25 |
 | Owner | TBD |
 | Target date | TBD |
 
@@ -68,20 +68,40 @@ The following is confirmed in the current source tree; the table above retains t
 - [x] Renewable, deadline-bounded leases with transient-renewal retry and legacy-state compatibility.
 - [x] Worker-generated request IDs and redacted warnings for final lease renewal/release failures.
 - [x] Cloudflare observability configuration enabled.
-- [x] Unit/injected-provider tests and Wrangler deployment dry-run.
+- [x] Unit/injected-provider tests, real workerd Durable Object integration tests, and Wrangler deployment dry-run.
+- [x] Core non-stream/SSE provider response validation, allowlisted normalization, protocol termination, and resolved
+  model rewriting.
 - [x] Source-complete direct `pg` identity access, explicit database/bootstrap auth modes, one-time HMAC-backed key
   issuance, endpoint scopes, revocation, coalesced last-used updates, and management audit transactions.
+- [x] Operator-only bounded API-key metadata listing, overlapping rotation with source-key locking, and a source security
+  threat model. Customer management identity and management idempotency remain open.
+- [x] Protected R0 team provisioning and idempotent account suspend/reactivate with same-transaction content-free audit
+  events. Suspension blocks new authentication after commit; customer roles and in-flight cancellation remain open.
+- [x] Trusted multi-route configuration, route-keyed provider RPM/TPM/concurrency leases, circuit breakers, safe
+  pre-forward fallback, and versioned redacted operational events.
+- [x] Protected dependency-health source checks for production configuration, identity/ledger schema, admission, and
+  provider-pool Durable Objects without provider generation.
+- [x] Source-controlled binding inventory with typed/README/Wrangler drift tests and an explicit fail-closed inference
+  switch. Environment-specific values, owners, and external configuration remain approval-gated.
+- [x] A one-request, content-free provider canary source with an eight-token output ceiling, remote double confirmation,
+  redirect rejection, bounded response, and normalized contract/usage validation. Scheduling and live runs remain open.
 
 The following is not yet provided:
 
-- [ ] Customer-managed users, teams, memberships, key listing/rotation, and entitlement administration.
-- [ ] Account-level entitlements, usage ledger, cost reservation/settlement, spend ceilings, and billing.
-- [ ] Full structured application events, metrics, dashboards, and production alerts.
-- [ ] Provider response adapters, normalized terminal events, multi-provider routing, or fallback.
+- [ ] Customer-managed users, teams, memberships, management roles, and entitlement administration. Operator-only key
+  metadata listing and overlapping rotation are source-complete.
+- [ ] Plan entitlements, provider invoice reconciliation, per-key ceilings, and billing. Base account usage reservation,
+  settlement, and token/spend ceilings are source-complete.
+- [ ] Metrics, dashboards, production log destinations, and alerts. Core structured application events are source-complete.
+- [ ] Real-provider fixtures/routes, latency/cost routing inputs, and post-attempt fallback. Trusted routing and
+  health/capacity control are source-complete.
 - [ ] Isolated staging/production deployment configuration, WAF policy, CI rollout, dependency-health checks, and
   canaries.
-- [ ] Real Durable Object integration, provider contract, load, soak, failover, staging E2E, or production synthetic tests.
-- [ ] Customer dashboard, support tooling, policy/retention decisions, operational runbooks, or OpenAPI policy.
+- [ ] Real provider contracts, PostgreSQL integration, load, soak, staging E2E, or production synthetic tests. Initial
+  workerd Durable Object concurrency/reload persistence tests are source-complete.
+- [ ] Customer dashboard, least-privilege customer support roles, policy/retention decisions, runbook exercises, approved
+  compatibility policy, or production OpenAPI publication. A bounded R0 operator lookup, source runbooks, the
+  compatibility-policy draft, and OpenAPI discovery are complete.
 
 ## Workstream summary
 
@@ -89,12 +109,12 @@ The following is not yet provided:
 | --- | --- | --- | --- | --- |
 | GOV | Product, architecture, and release decisions | P0 | In progress | R1 |
 | IAM | Accounts, teams, and API keys | P0 | In progress | R1 |
-| ADP | Provider adapters and fallback routing | P0 | Not started | R2; redundancy required for R3 |
-| USG | Usage, quota, and cost control | P0 | Not started | R2 |
+| ADP | Provider adapters and fallback routing | P0 | Partial — trusted routing, adapters, and provider-pool control implemented | R2; redundancy required for R3 |
+| USG | Usage, quota, and cost control | P0 | Partial — local source complete for base reservation/settlement | R2 |
 | OBS | Application observability and alerting | P0 | Partial | R1/R2 |
-| ENV | Staging/production boundaries and delivery | P0 | Not started | R1 |
+| ENV | Staging/production boundaries and delivery | P0 | Partial — local safety config and dependency check implemented | R1 |
 | VER | Integration, contract, load, and E2E verification | P0 | Partial | Every stage |
-| OPS | Billing and customer/operational release work | P0 | Not started | R3 |
+| OPS | Billing and customer/operational release work | P0 | In progress — source runbooks and compatibility draft exist | R3 |
 | SCL | Admission-control scaling | P1, threshold-triggered | Not started | Before exceeding validated singleton capacity |
 
 ## Dependency order
@@ -151,7 +171,11 @@ Status: **In progress**
 ### Data and key lifecycle
 
 - [x] Add protected R0 provisioning for persistent account records with explicit status and plan reference.
-- [ ] Add team provisioning and model/plan entitlement records.
+- [x] Add a protected, bounded R0 account metadata inventory so operators can recover account IDs without database
+  access or unrestricted joins.
+- [x] Add protected R0 provisioning, bounded metadata listing, and reversible archive/reactivate for account-owned team
+  records.
+- [ ] Add model/plan entitlement records.
 - [ ] Add account membership and administrative roles; define who can issue, list, rotate, and revoke keys.
 - [x] Generate cryptographically random API keys with a versioned prefix and sufficient entropy.
 - [x] Display the full key exactly once and never make it retrievable afterward.
@@ -160,19 +184,29 @@ Status: **In progress**
 - [x] Define and enforce initial scopes for model listing and both inference protocols.
 - [ ] Define administration and future capability scopes.
 - [x] Implement immediate revocation for new requests.
-- [ ] Implement overlapping rotation without an outage window.
+- [x] Implement operator-only bounded key metadata listing and overlapping rotation without an outage window; the source
+  key remains active until separately revoked.
+- [x] Preserve an optional per-key usage-limit policy during rotation under the shared account-policy/key-policy lock
+  order; replacement-key usage buckets start empty.
 - [x] Make last-used updates bounded and failure-tolerant so they cannot block inference.
 - [ ] Add model and plan entitlements at the account level and optional narrower restrictions at the key level.
 - [x] Enforce fixed account-level request and concurrency safety ceilings independently of key count.
-- [ ] Enforce account-level token and spend limits independently of key count through reservation and settlement.
-- [x] Add append-only administrative audit events in the same transaction as account creation, key issue, and revoke.
+- [x] Enforce account-level token and spend limits independently of key count through reservation and settlement.
+- [x] Add append-only administrative audit events in the same transaction as account/team creation, account/team
+  suspend/reactivate, and key issue/rotation/revoke.
+- [x] Add operator-only, account-bound, bounded content-free administrative audit history without returning stored JSON
+  metadata or actor user/API-key identifiers.
+- [ ] Make plaintext-returning key issue/rotation requests retry-safe with a bounded management idempotency contract.
 - [ ] Add entitlement-change audit events when entitlements are implemented.
 - [x] Design a controlled migration away from `SENKO_API_KEYS`; explicit modes retain no silent bootstrap fallback.
 
 ### Security and verification
 
-- [ ] Threat-model key generation, storage lookup, timing behavior, logs, caches, rotation, and compromised-key handling.
+- [x] Threat-model key generation, storage lookup, timing behavior, logs, caches, rotation, and compromised-key handling;
+  staging validation and external review remain open.
 - [x] Unit-test unknown, expired, revoked, wrong-scope, disabled-account, and cross-account access.
+- [x] Verify concurrent rotation and reservation plus replacement-key limit enforcement against an isolated schema on
+  the development/test Railway PostgreSQL service.
 - [ ] Repeat lifecycle and cross-account checks against the migrated development/test database and staging Worker.
 - [ ] Test concurrent rotation/revocation while requests are waiting, admitted, and streaming.
 - [ ] Verify raw keys and authorization headers cannot appear in application, Cloudflare, CI, or support logs.
@@ -186,30 +220,37 @@ Exit criteria:
 
 ## ADP — Provider adapters and fallback routing
 
-Status: **Not started**
+Status: **Partial** — request/response allowlists, response size/deadline controls, conservative protocol-terminal usage
+gates, trusted multi-route configuration, provider-pool capacity/circuit coordination, and safe pre-forward selection are
+implemented; complete provider fixtures, real routes, latency/cost inputs, and post-attempt fallback remain open.
 
 ### Normalized provider boundary
 
 - [ ] Define a provider-adapter interface for request construction, response validation, usage extraction, error mapping,
   model resolution, and cancellation.
-- [ ] Validate non-streaming JSON instead of forwarding a successful provider body unchanged.
-- [ ] Parse and validate Chat Completions SSE, including tool calls, finish reasons, terminal usage, and `[DONE]`.
-- [ ] Parse and validate Responses SSE, including terminal response events, function calls/outputs, errors, and usage.
-- [ ] Emit the contractually required resolved model ID and normalized fields for every supported response path.
-- [ ] Reject malformed, incompatible, oversized, incomplete, or unsupported provider events safely.
-- [ ] Preserve stream backpressure, cancellation, first-byte, idle, total, event-size, and response-size limits.
+- [x] Validate non-streaming JSON instead of forwarding a successful provider body unchanged.
+- [x] Parse and validate Chat Completions SSE, including tool calls, finish reasons, terminal usage, and `[DONE]`.
+- [x] Parse and validate Responses SSE, including terminal response events, function calls/outputs, errors, and usage.
+- [x] Emit the contractually required resolved model ID and normalized core fields for every current response path.
+- [x] Reject malformed, incompatible, oversized, incomplete, or unsupported provider core events safely.
+- [x] Preserve stream backpressure, cancellation, first-byte, idle, total, event-size, and response-size limits.
 - [ ] Maintain protocol fixtures for every supported provider/model combination.
 
 ### Routing and fallback
 
-- [ ] Configure at least two validated provider routes for each model alias that requires an availability promise.
-- [ ] Track provider health, recent failures, latency, rate-limit state, and circuit-breaker state.
-- [ ] Represent provider RPM/TPM and concurrency capacity separately from customer quota.
-- [ ] Select routes using auditable health, capacity, cost, latency, model, region, and entitlement inputs.
-- [ ] Allow safe fallback only before any response byte is delivered.
-- [ ] Prohibit silent retry or route changes after streaming begins.
+- [x] Support validated multi-route declarations and deterministic priority/route-ID selection per model and protocol.
+- [ ] Configure at least two real, contract-tested provider routes for each model alias that requires an availability promise.
+- [x] Track consecutive route failures and circuit-breaker state in one Durable Object per stable route ID. Latency-based
+  scoring and provider-returned rate-limit state remain open.
+- [x] Represent provider RPM/TPM and concurrency capacity separately from customer quota.
+- [ ] Extend the current redacted, auditable model/protocol/priority selection with health, capacity, cost, latency, region,
+  and entitlement inputs.
+- [x] Allow capacity/circuit fallback before provider forwarding; post-attempt fallback remains disabled pending distinct
+  usage-attempt settlement and contract evidence.
+- [x] Prohibit silent retry or route changes after provider forwarding or streaming begins.
 - [ ] Ensure every attempted route has one Senko request ID and distinct provider-attempt metadata for reconciliation.
-- [ ] Test circuit opening/closing, partial outage, rate limiting, fallback success, and no-retry-after-stream-start.
+- [x] Unit-test circuit opening/half-open recovery, RPM/TPM/concurrency denial, renewable leases, idempotent release,
+  pre-forward fallback, missing-binding fail-closed behavior, and no extra provider request. Real failover/load remains open.
 
 Exit criteria:
 
@@ -218,27 +259,34 @@ Exit criteria:
 
 ## USG — Usage, quota, and cost control
 
-Status: **Not started**
+Status: **Partial** — five-table schema, reservation/settlement, account limits, expiry-indexed repair queue, and kill
+switch are source-complete locally; live migration, provider-price decision, cache/reasoning pricing, invoice
+reconciliation, alerts, and real concurrency/load evidence remain open.
 
 ### Reservation and settlement
 
-- [ ] Define an append-only, idempotent usage ledger keyed by Senko request ID and provider attempt.
-- [ ] Record account, key, model alias, resolved model, provider route, pricing version, and reservation state without
+- [x] Define an append-only, idempotent usage ledger keyed by Senko request ID and provider attempt.
+- [x] Record account, key, model alias, resolved model, provider route, pricing version, and reservation state without
   content.
-- [ ] Estimate input and maximum output tokens before provider forwarding.
-- [ ] Calculate and atomically reserve the maximum request cost against account limits before generation starts.
-- [ ] Reject a request before forwarding when its reservation would exceed token or spend limits.
+- [x] Estimate input and maximum output tokens before provider forwarding.
+- [x] Calculate and atomically reserve the maximum request cost against account limits before generation starts.
+- [x] Reject a request before forwarding when its reservation would exceed token or spend limits.
 - [ ] Extract actual input/output/cache/reasoning usage from validated terminal provider data.
-- [ ] Atomically settle actual cost and release unused reservation capacity.
-- [ ] Define conservative settlement for cancellation, timeout, malformed terminal data, and missing usage.
-- [ ] Make reserve, settle, release, retry, and webhook/reconciliation writes idempotent.
-- [ ] Prevent concurrent requests or multiple keys from overspending the same account budget.
+- [x] Atomically settle actual input/output cost and release unused reservation capacity.
+- [x] Define conservative settlement for cancellation, timeout, malformed terminal data, missing usage, and expired
+  reservations.
+- [ ] Make reserve, settle, release, retry, and webhook/reconciliation writes idempotent. Base reservation, terminal
+  settlement, and expiry retry are idempotent; invoice/webhook reconciliation is pending.
+- [ ] Prevent concurrent requests or multiple keys from overspending the same account budget. SQL locking is implemented;
+  real PostgreSQL race/load evidence is pending.
 
 ### Limits and reconciliation
 
-- [ ] Enforce per-minute token quotas and daily/monthly account spend ceilings.
-- [ ] Support narrower per-key ceilings without weakening the account ceiling.
-- [ ] Add account suspension, plan enforcement, and a global emergency inference kill switch.
+- [x] Enforce per-minute token quotas and daily/monthly account spend ceilings.
+- [x] Support narrower per-key ceilings without weakening the account ceiling.
+- [ ] Add account suspension, plan enforcement, and a global emergency inference kill switch. Protected account
+  suspend/reactivate and the global kill switch are implemented; plan-derived policy remains open. Suspension blocks
+  new authentication after commit but intentionally does not terminate an already-forwarded request.
 - [ ] Import or query provider invoice/usage data and reconcile it against the Senko ledger.
 - [ ] Alert on missing usage, stale reservations, duplicate settlement attempts, reconciliation drift, and sudden cost
   increases.
@@ -252,18 +300,26 @@ Exit criteria:
 
 ## OBS — Application observability and alerting
 
-Status: **Partial** — Cloudflare observability is enabled, but application coverage is limited to lease warnings.
+Status: **Partial** — Cloudflare observability and a versioned, redacted application event schema cover the core request,
+provider, admission-lease, usage, and reconciliation lifecycle. Destinations, dashboards, retention, sampling, access
+controls, and alerts remain open.
 
 ### Structured events
 
-- [ ] Define a versioned event schema and failure-category taxonomy.
-- [ ] Emit request start/finish, authentication, admission, route selection, provider headers, first token, terminal usage,
-  cancellation, timeout, stream failure, lease renewal/release, reservation, and settlement outcomes.
-- [ ] Include only request ID, internal account/key ID, model/route identifiers, outcome, HTTP status, failure category,
+- [x] Define a versioned event schema and failure-category taxonomy.
+- [x] Emit request start/finish, authentication, admission, route selection, provider headers/first byte/first output
+  delta/completion, cancellation/timeout/stream failure classification, lease renewal/release failure, reservation,
+  settlement, and scheduled reconciliation.
+- [x] Include only request ID, internal account/key ID, model/route identifiers, outcome, HTTP status, failure category,
   timings, usage totals, and calculated cost where applicable.
-- [ ] Record provider latency, time to first token, and total stream duration separately.
-- [ ] Record fallback and circuit-breaker decisions with redacted reason codes.
-- [ ] Add central redaction helpers and negative tests for prompts, generated text, tool arguments/results, authorization
+- [x] Record provider headers latency, first-body-byte latency, parsed streaming first-output timing, and total duration
+  separately for both protocols.
+- [x] Record provider-pool admission, pre-forward fallback, circuit state, remaining capacity, lease renewal, and release
+  with redacted reason codes.
+- [x] Persist authenticated, content-free final customer API request envelopes independently of usage reservation,
+  including pre-reservation failures and post-header stream outcomes; keep unauthenticated traffic out of PostgreSQL
+  and make persistence failure observable without failing the customer request.
+- [x] Add central allowlist/redaction helpers and negative tests for prompts, generated text, tool arguments/results, authorization
   headers, raw API keys, and provider credentials.
 - [ ] Define sampling, retention, access control, and separate staging/production destinations.
 
@@ -284,16 +340,19 @@ Exit criteria:
 
 ## ENV — Staging/production boundaries and delivery
 
-Status: **Not started**
+Status: **In progress** — production exposure is disabled by default, the binding inventory and protected
+dependency-health source check exist, and inference requires an explicit enabled state; isolated environment
+configuration, CI rollout, external verification, and production publication remain.
 
 ### Environment isolation
 
 - [ ] Create explicit staging and production Worker configurations and names.
 - [ ] Use separate bindings, Durable Object namespaces/state, provider keys, API-key storage, ledgers, model catalogs,
   observability destinations, and alert channels.
-- [ ] Set production `workers_dev: false` and `preview_urls: false` explicitly.
+- [x] Set production `workers_dev: false` and `preview_urls: false` explicitly.
 - [ ] Configure `api.senkocode.com` as the production custom domain only after the production gate is approved.
-- [ ] Document which non-secret variables are configuration-as-code and which remain Dashboard-managed.
+- [x] Add a machine-readable binding inventory and document that binding schemas/purposes are configuration-as-code
+  while current R0 environment values remain Dashboard-managed and versioned in deployment evidence.
 - [ ] Add a secret inventory, rotation owner, rotation procedure, and no-downtime provider-key rotation test.
 - [ ] Confirm production has no path to staging data and staging has no production provider/account credentials.
 
@@ -301,7 +360,8 @@ Status: **Not started**
 
 - [ ] Add WAF and invalid-auth abuse controls before application authentication.
 - [ ] Use least-privilege, environment-scoped CI deployment credentials.
-- [ ] Require lint, typecheck, unit/integration tests, migration checks, and a Worker dry-run before deployment.
+- [x] Require lint, typecheck, unit/integration tests, migration checks, and a Worker dry-run before deployment through
+  the existing least-privilege GitHub Actions `pnpm check` gate. Environment-scoped deployment remains separate.
 - [ ] Run authenticated staging smoke/contract tests before production promotion.
 - [ ] Define controlled rollout size, health criteria, automatic/manual stop conditions, and rollback procedure.
 - [ ] Run post-deploy liveness, dependency-health, authentication, inference, usage-settlement, and alert synthetic
@@ -311,9 +371,11 @@ Status: **Not started**
 ### Health model
 
 - [x] Keep public `/health` limited to Worker liveness.
-- [ ] Add a protected dependency-health check for required configuration, identity storage, admission, and ledger
-  dependencies.
-- [ ] Add an external scheduled provider canary with a strict cost ceiling and no customer data.
+- [x] Add a protected dependency-health check for required configuration, identity storage, admission, provider-pool,
+  and ledger dependencies. Live staging verification remains open.
+- [ ] Add an external scheduled provider canary with a strict cost ceiling and no customer data. The one-request,
+  eight-output-token, remote-double-confirmed script and content-free result contract are source-complete; approved
+  scheduling, credentials, account ceiling, alert route, and live evidence remain open.
 - [ ] Ensure a provider outage affects dependency/route health without turning Worker liveness into a dependency fan-out.
 
 Exit criteria:
@@ -323,28 +385,33 @@ Exit criteria:
 
 ## VER — Integration, contract, load, and E2E verification
 
-Status: **Partial** — unit/injected-provider coverage exists; real runtime and external verification remain.
+Status: **Partial** — unit/injected-provider coverage and initial workerd Durable Object integration exist; PostgreSQL,
+external provider, load, staging, and production verification remain.
 
 ### Cloudflare runtime and state
 
-- [ ] Add Workerd/Miniflare tests using the real Durable Object binding and SQLite migration.
-- [ ] Test concurrent acquire/renew/release, idempotent release, expiry, controller restart, and persisted-state migration.
+- [x] Add Workerd/Miniflare tests using the real Durable Object bindings and SQLite migrations.
+- [x] Test concurrent acquire/renew/release, idempotent release, expiry, controller restart, and persisted-state migration.
+  Concurrent acquire/release, deadline-bounded renewal, idempotent release, Worker reload, Durable Object eviction,
+  deadline expiry/capacity reclamation, and an actual legacy Worker-to-current Worker storage migration are covered.
 - [ ] Test identity, quota, reservation, settlement, and audit persistence across Worker/DO restarts.
-- [ ] Test cancellation before provider headers, between headers and first event, and during streaming.
+- [x] Test cancellation before provider headers, between headers and first event, and during streaming.
 
 ### Provider robustness and contracts
 
-- [ ] Test slow headers, slow chunks, malformed JSON/SSE, oversized events/bodies, abrupt termination, and never-ending
-  responses.
+- [x] Test slow headers, slow chunks, malformed JSON/SSE, oversized events/bodies, abrupt termination, and never-ending
+  responses with local/injected providers. External-provider behavior remains open.
 - [ ] Run real-provider Chat Completions contract tests for each supported route.
 - [ ] Run real-provider Responses contract tests for each supported route.
-- [ ] Test text, reasoning, parallel tool calls, tool results, stop reasons, resolved models, and usage events.
-- [ ] Verify fallback before headers and verify no fallback/retry after response bytes.
+- [x] Test text, reasoning, parallel tool calls, tool results, stop reasons, resolved models, and usage events with local
+  JSON/SSE fixtures for both supported protocols. Real-provider contract coverage remains separately gated below.
+- [x] Verify fallback before headers and verify no fallback/retry after response bytes.
 - [ ] Verify provider cancellation and Senko deadline behavior with external requests.
 
 ### Capacity and release verification
 
-- [ ] Establish reproducible load profiles for authentication, admission, streaming, and settlement.
+- [x] Establish source-controlled, localhost-default load profiles for authentication, admission, streaming, and
+  settlement with bounded overrides, remote double confirmation, aggregate-only output, and no credential arguments.
 - [ ] Run load and soak tests at expected and failure-injection traffic levels.
 - [ ] Run provider failover, circuit-breaker recovery, and exhausted-provider-capacity tests.
 - [ ] Prove token/spend ceilings under concurrency, retry, cancellation, delayed settlement, and provider mismatch.
@@ -368,7 +435,8 @@ Exit criteria:
 
 ## OPS — Billing and customer/operational release work
 
-Status: **Not started**
+Status: **In progress** — source runbooks, OpenAPI, and a bounded content-free operator lookup exist; billing,
+customer administration, dashboards, policy approval, and external exercises remain open.
 
 ### Billing and customer controls
 
@@ -376,19 +444,28 @@ Status: **Not started**
 - [ ] Handle provisioning, plan changes, renewal, payment failure, grace periods, suspension, cancellation, refunds, and
   disputes consistently with entitlements and spend controls.
 - [ ] Build a customer dashboard for account usage, spend, limits, keys, rotation, revocation, and audit history.
-- [ ] Build least-privilege support tooling keyed by Senko request ID, account ID, and ledger state.
-- [ ] Prevent support tools from exposing prompts, outputs, tool data, full keys, or provider credentials.
+- [x] Build a bounded operator support lookup keyed by Senko request ID with final status/failure, account/key,
+  provider-attempt, reservation, and ledger metadata, including requests that fail before usage reservation.
+- [ ] Add customer-management roles and account-level lookup/workflows so support access is least privilege beyond the
+  R0 shared operator token.
+- [x] Exclude prompts, outputs, tool data, authorization values, full keys, key hashes, and provider credentials from the
+  current support query and response contract.
 
 ### Policy and operations
 
 - [ ] Publish a privacy policy consistent with actual retention, provider transfer, training/ZDR choices, staff access,
   deletion, backups, subprocessors, and regional requirements.
 - [ ] Define abuse handling, rate-limit escalation, account suspension, appeals, and compromised-key response.
-- [ ] Write and exercise incident, provider-outage, secret-rotation, billing-reconciliation, data-correction, and rollback
-  runbooks.
+- [x] Write source runbooks for incident triage, provider outage, secret rotation, billing reconciliation, data
+  correction, and rollback without prompt/output/credential access.
+- [ ] Exercise the runbooks in staging with named responders, external contacts, and recorded evidence.
 - [ ] Define on-call/support ownership, severity levels, response targets, customer communication, and incident review.
-- [ ] Publish an OpenAPI specification for the supported contract.
-- [ ] Publish compatibility, versioning, model-alias change, deprecation, and breaking-change policies.
+- [x] Implement a source-controlled OpenAPI 3.1 specification and expose it at unauthenticated `GET /openapi.json`,
+  with separate customer/admin bearer schemes, required scopes, runtime-aligned request allowlists, and contract tests.
+- [ ] Publish and verify the OpenAPI document on the approved production custom domain.
+- [x] Draft compatibility, versioning, model-alias change, deprecation, and breaking-change rules as a source-controlled
+  approval candidate.
+- [ ] Approve and publish the compatibility policy with final owners, notice periods, and communication channels.
 - [ ] Complete security, privacy, billing, and legal review appropriate to the launch regions and customer terms.
 
 Exit criteria:
@@ -411,7 +488,8 @@ into pricing or availability promises.
 - [ ] Define a measured trigger using sustained traffic, queueing, p95/p99 admission latency, error rate, and planned
   limit increases.
 - [ ] Partition accurate request, token, spend, and concurrency ownership by account/tenant Durable Object.
-- [ ] Coordinate provider-pool RPM/TPM/concurrency capacity separately from account quota.
+- [x] Coordinate provider-pool RPM/TPM/concurrency capacity separately from account quota using one route-keyed Durable
+  Object per stable provider route. Load evidence and topology tuning remain open.
 - [ ] Use Cloudflare's edge rate-limiting capability only for coarse abuse absorption, never billing/accounting truth.
 - [ ] Design idempotent migration from the singleton state without losing active concurrency ownership or quota history.
 - [ ] Test hot accounts, many small accounts, controller restarts, migration, and provider-pool contention under load.
@@ -467,6 +545,7 @@ Exit criteria:
 2. **Provider contract layer:** implement one adapter for both protocols, normalize terminal usage/model/error behavior,
    and add malformed/incomplete-stream fixtures before adding a second route.
 3. **Usage ledger:** add idempotent reservation and settlement with account token/spend ceilings and failure-state tests.
+   **Base source-complete; live migration, pricing decision, provider reconciliation, and concurrency evidence pending.**
 4. **Operational events:** emit the minimum complete redacted event set and build staging dashboards/alerts.
 5. **Staging boundary:** create isolated Cloudflare configuration, real Durable Object tests, dependency-health/canary
    checks, and a controlled staging deployment workflow.
@@ -483,6 +562,11 @@ remains the next external IAM verification slice and requires separate approval 
   `SENKO_AUTH_MODE=database` in Cloudflare.
 - [ ] From a real staging Worker, verify account creation, one-time key issue, scoped authentication, and immediate
   revocation against the development/test database.
+- [ ] Review and separately approve the generated usage-accounting migration for the development/test database.
+- [ ] Review and separately approve the generated API-key usage-limit migration `0004` for the development/test
+  database.
+- [ ] After D-004 is resolved, configure versioned model pricing and explicit account usage limits in staging, then verify
+  reservation, terminal settlement, conservative settlement, and scheduled expiry repair end to end.
 
 Production migration, secrets, deployment, and backup policy remain separate release operations and are not authorized
 by this deferred task.
@@ -500,15 +584,16 @@ by this deferred task.
 | D-007 | TBD | R3 SLO and availability promise | Open | Determines redundancy and operational gates |
 | D-008 | 2026-08-24 | Start with direct `pg` connections from Workers to Railway PostgreSQL | Accepted | Defer connection pooling until measured latency or connection pressure justifies it |
 | D-009 | 2026-08-24 | Treat fixed admission limits as R0 safety guardrails, not product-plan or enterprise capacity | Accepted | Replace with account entitlements backed by measured provider capacity; partition admission before materially raising limits |
+| D-010 | 2026-08-25 | Use immutable usage attempts, append-only phase events, and locked account aggregate buckets | Accepted | Missing or uncertain terminal usage and expired reservations conservatively settle the full reservation; exact provider pricing remains D-004 |
 
 ## Risk register
 
 | Risk | Impact | Control/workstream | Status |
 | --- | --- | --- | --- |
-| Multiple keys multiply account quota | Unbounded cost | IAM fixed request/concurrency ceilings + USG token/spend ceilings | Partially controlled |
-| Missing/incorrect terminal usage | Underbilling or budget drift | ADP validation + USG conservative settlement/reconciliation | Open |
+| Multiple keys multiply account quota | Unbounded cost | IAM fixed request/concurrency ceilings + USG token/spend ceilings | Source-controlled; live race evidence open |
+| Missing/incorrect terminal usage | Underbilling or budget drift | ADP validation + USG conservative settlement/reconciliation | Conservative settlement implemented; provider reconciliation open |
 | Fallback creates duplicate generations/cost | Double charge and inconsistent output | ADP pre-byte-only fallback + attempt ledger | Open |
-| Customer content reaches logs | Privacy/security incident | OBS schema, central redaction, negative tests | Open |
+| Customer content reaches logs | Privacy/security incident | OBS schema, central redaction, negative tests | Source-controlled; external destinations open |
 | Staging accesses production state/secrets | Data or spend incident | ENV isolation and deployment checks | Open |
 | Provider price/catalog changes silently | Incorrect reservation or billing | GOV versioned pricing + reconciliation | Open |
 | Singleton Durable Object becomes a bottleneck | Availability/latency degradation | VER load thresholds + SCL partitioning | Open |
@@ -530,6 +615,22 @@ by this deferred task.
 | 2026-08-24 | Development/test IAM migration | Target-ID guard; TLS session; one migration; 8 tables; 13 foreign keys; 27 checks; 23 indexes | Applied only to `Senko Test Postgres`; independent verification passed |
 | 2026-08-24 | Worker identity source | Direct `pg` dry-run bundle; one-time HMAC keys; database/bootstrap modes; scoped auth; issue/revoke audit transactions; `pnpm check` (23 files/179 tests) | Passed locally; no Cloudflare secrets, runtime DB role, deployment, or external DB E2E |
 | 2026-08-24 | Account admission ceilings | Account/key-aware Durable Object state, legacy-state migration, multiple-key isolation tests, and `pnpm check` (23 files/183 tests) | Passed locally; no staging or production changes |
+| 2026-08-25 | Base usage accounting source | Five-table schema and generated migrations; locked account reservation buckets; protocol-terminal JSON/SSE usage settlement; expiry-indexed skip-locked repair queue; conservative failure/expiry settlement; usage-limit management API; kill switch; strict review P1 fixes | `pnpm check` passed: 25 files/208 tests, all typechecks/builds, Wrangler dry-run; usage migration, pricing configuration, real PostgreSQL race test, staging, and production remain unverified |
+| 2026-08-25 | Core provider response adapter | Completed JSON core validation, allowlisted response/usage rebuild, resolved-model rewriting, event-boundary SSE validation, known-event enforcement, and protocol-terminator rejection tests; strict general/security review has no remaining P0/P1 | `pnpm check` passed: 26 files/213 tests, all typechecks/builds, database migration check, and Wrangler dry-run; focused adapter/usage paths passed 4 files/52 tests; full tool/reasoning fixtures, real provider contracts, routing/fallback, and staging remain unverified |
+| 2026-08-25 | Trusted provider routing, provider-pool control, observability, and protected dependency health | Deterministic trusted destinations; outbound redirect rejection; per-route RPM/TPM/concurrency Durable Objects; circuit/half-open behavior; safe pre-forward capacity fallback; JSON/SSE terminal health classification; redacted lifecycle events; admin-token-protected configuration/DB/DO checks | Initial `pnpm check` passed with 31 files/248 tests; the later redirect-boundary regression is covered by the current full check. Real provider contracts, live database schema check, staging, dashboards, and alerts remain unverified |
+| 2026-08-25 | Workerd Durable Object integration and cancellation | Wrangler `createTestHarness` loaded the actual config, both SQLite migrations, and real bindings; concurrent admission serialized at the configured limit; active Admission/Provider Pool leases survived Worker reload and Durable Object eviction; provider capacity denial, circuit persistence, deadline-bounded renewal, expiry reclamation, and cancellation lifecycle were exercised through real bindings | Covered by the later 33-file/273-test `pnpm check`; persisted legacy-state migration remains unit-tested only; PostgreSQL, external provider, load, staging, and production remain unverified |
+| 2026-08-25 | OpenAPI source contract | Public `GET /openapi.json`; distinct customer/admin bearer schemes; operation scopes; all implemented routes; runtime-shared inference allowlists; bounded management schemas; no secret binding names; strict security review has no remaining P0/P1 | Covered by the later 33-file/273-test `pnpm check`; production custom-domain publication and compatibility-policy approval/publication remain unverified |
+| 2026-08-25 | API-key lifecycle, security model, and provider robustness | Account-bound bounded metadata listing; overlapping rotation with locked source validation, inherited ownership/scopes, one-time secret response, replacement metadata, and audit event; security threat model; injected slow/oversized/malformed/abrupt/never-ending provider cases; strict review P1 OpenAPI composition fix; general/security re-review has no remaining P0/P1 | `pnpm check` passed with 33 files/273 tests, all lint/typechecks/builds, migration check, and Wrangler dry-run; management idempotency, customer admin roles, real PostgreSQL races, external log/provider validation, staging, and production remain open |
+| 2026-08-25 | Content-free request support trace | Authenticated request envelopes persist final HTTP/failure state independently of usage reservation; bounded admin lookup joins request, provider-attempt, reservation, and ledger metadata; unauthenticated traffic cannot amplify PostgreSQL writes; streaming requests finalize only after body completion; strict review P1 fixes covered pre-reservation failures, unauthenticated write amplification, and premature streaming success; general/security re-review has no remaining P0/P1 | `pnpm check` passed with 34 files/285 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; migration `0003`, retention/access policy, live PostgreSQL, staging, and production remain unverified |
+| 2026-08-25 | API-key usage ceilings | Optional account-owned key policies and buckets; management contract; account-first transactional reservation, settlement, and expiry repair; key policy snapshot; cross-account schema guards; narrower-than-account validation; general/security/schema strict review with no P0/P1 | `pnpm check` passed with 34 files/294 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; migration `0004`, real PostgreSQL races, staging, and production remain unverified |
+| 2026-08-25 | R0 team and account lifecycle | Protected account-owned team creation; serialized, idempotent account suspend/reactivate; same-transaction content-free audit events; OpenAPI, threat-model, and recovery-runbook boundaries; general/security strict review with no P0/P1 | `pnpm check` passed with 34 files/304 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; live PostgreSQL races, in-flight cancellation policy, staging, and production remain unverified |
+| 2026-08-25 | Bounded team lifecycle | Account-bound cursor listing; idempotent archive/reactivate; team-wide new-authentication pause; account/key/team lock ordering for issue/rotation/status races; OpenAPI and recovery semantics; general/security strict review with no P0/P1 | `pnpm check` passed with 34 files/313 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; live PostgreSQL races, staging, and production remain unverified |
+| 2026-08-25 | Content-free administrative audit history | Account-bound cursor pagination; strict allowlists for action, actor, target, identifiers, and request IDs; response rebuilding that excludes stored metadata and actor IDs; unknown stored values fail closed; OpenAPI and operator runbook; general/security strict review with no P0/P1 | `pnpm check` passed with 34 files/317 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; live PostgreSQL, external log destination, staging, and production remain unverified |
+| 2026-08-25 | Bounded R0 account inventory | Admin-token-protected account metadata only; validated UUID cursor; `(created_at, id)` pagination; 100-record ceiling; no-store response; OpenAPI, observability classification, and operator recovery guidance; general/security strict review with no P0/P1 | `pnpm check` passed with 34 files/320 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; live PostgreSQL, customer-scoped authorization, staging, and production remain unverified |
+| 2026-08-25 | Reproducible load-profile source | Authentication, admission, streaming, and settlement profiles; localhost default; bounded traffic/deadline/body; secret only through environment; HTTPS and double confirmation for remote; redirects rejected; admission requires valid 200 and 429 evidence with split latency; strict-review P1 fixes for redirect escape, pnpm invocation, single-key guardrails, and all-denied false success; re-review with no P0/P1 | `pnpm check` passed with 35 files/327 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; no staging/production load was sent, and real load/soak/capacity evidence remains unverified |
+| 2026-08-25 | Deployment configuration inventory and fail-closed inference switch | Machine-readable inventory covers all typed Worker bindings without values; Wrangler Durable Object and README drift tests; documented Dashboard/config-as-code and environment/rotation boundaries; missing, empty, or invalid `SENKO_INFERENCE_ENABLED` now fails inference and protected dependency health closed; strict review P1 fix and general/security re-review with no remaining P0/P1 | `pnpm check` passed with 36 files/333 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, Workerd integration, and load-profile contract tests; Cloudflare environments, values, owners, routes, WAF, deployment credentials/workflow, and external verification remain unconfigured |
+| 2026-08-25 | API-key rotation preserves per-key usage policy | Rotation copies the locked source policy to the replacement key in the same transaction; usage configuration, rotation, and reservation use an account-policy-first lock order; replacement buckets start empty; audit metadata records whether limits were inherited | Unit lock-order/policy-copy regression and isolated-schema concurrency/enforcement test passed on `Senko Test Postgres`; `pnpm check` passed with 37 files/343 tests plus the opt-in PostgreSQL test; staging and production remain unverified |
+| 2026-08-25 | Bounded provider canary source and CI gate audit | One Responses or Chat Completions request; fixed content-free prompt; eight-token output ceiling; HTTPS and remote double confirmation; environment-only credential; redirect rejection; two-minute/1-MiB client bounds; request-ID, resolved-model, usage, and known normalized output-item validation without generated-content output; existing GitHub Actions gate confirmed to run the full check on PR/main; strict-review P1 false-positive fix and general/security re-review with no remaining P0/P1 | `pnpm check` passed with 37 files/342 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, Workerd integration, load-profile, and canary contract tests; no provider traffic was sent, and schedule, Cloudflare credentials, account ceiling, alerts, staging, and production remain unconfigured |
 
 ## Progress log
 
@@ -542,3 +643,18 @@ by this deferred task.
 | 2026-08-24 | Added Test DB Public TCP Access and applied and independently verified the IAM migration | Implement the direct Worker database access and API-key lifecycle boundary; keep production unmigrated |
 | 2026-08-24 | Implemented direct Worker database access and the initial API-key issue/auth/revoke boundary | Create a least-privilege dev/test runtime DB role and verify the flow from a real staging Worker after separate approval |
 | 2026-08-24 | Deferred development/test runtime role, staging secrets, and real Worker identity E2E while the operator is away; implemented fixed account request/concurrency ceilings | Implement account token/spend reservation and settlement; resume the recorded external IAM tasks when authorized |
+| 2026-08-25 | Implemented the base usage ledger, account ceilings, conservative expiry repair, and global kill switch; kept live DB and Cloudflare unchanged | Complete strict P0/P1 review, then continue the provider contract adapter while D-004 and external staging work remain with the operator |
+| 2026-08-25 | Completed core single-route provider adapter strict general/security review with no remaining P0/P1; `pnpm check` passes | Add provider route configuration, auditable selection, and fallback limited to adapter-proven pre-generation rejection |
+| 2026-08-25 | Added trusted multi-route capacity/circuit coordination, strict-reviewed route failure classification, structured events, protected dependency health, and disabled unapproved Workers/preview URLs | Add real Durable Object runtime/persistence tests and isolated staging configuration; external provider routes, secrets, and deployment remain operator-approved work |
+| 2026-08-25 | Added real workerd tests for Durable Object binding/migration, concurrent admission, idempotent release, Worker-reload persistence, provider capacity/circuit state, and deadline-bounded renewal; fixed cancellation races so client disconnects remain circuit-neutral; `pnpm check` passes 32 files/254 tests | Extend runtime tests to expiry/eviction/legacy migration, then add Railway PostgreSQL and external provider contracts after approval |
+| 2026-08-25 | Added a source-controlled OpenAPI 3.1 discovery route and contract tests for route/auth/scope/allowlist drift; strict security review reports no P0/P1; `pnpm check` passes 33 files/263 tests | Define compatibility/versioning/deprecation policy, then continue safe operational runbooks while publication remains deployment-gated |
+| 2026-08-25 | Added account-bound API-key listing, overlapping rotation, security threat model, Durable Object eviction/expiry coverage, and provider failure injection; fixed the strict-review OpenAPI composition P1; `pnpm check` passes 33 files/273 tests | Add content-free support lookup and management mutation idempotency while customer roles and external verification remain human-gated |
+| 2026-08-25 | Added authenticated content-free request envelopes and bounded support lookup; fixed strict-review P1s for pre-reservation failures, unauthenticated database writes, and premature stream finalization; `pnpm check` passes 34 files/285 tests | Continue local contract/failure-path verification; management idempotency, retention/access policy, migration, and external verification remain human-gated |
+| 2026-08-25 | Added optional API-key token/spend ceilings that can only narrow the account policy, including atomic reservation/settlement/repair and protected management/OpenAPI contracts; general/security/schema review found no P0/P1 and `pnpm check` passed 34 files/294 tests | Continue the next safe local workstream; keep migration `0004` and live race/staging verification human-gated |
+| 2026-08-25 | Added protected R0 team creation and serialized, audited, idempotent account suspend/reactivate; general/security review found no P0/P1 and `pnpm check` passed 34 files/304 tests | Add bounded team lifecycle management while customer roles, entitlements, live database races, and staging remain human-gated |
+| 2026-08-25 | Added account-bound team listing and audited archive/reactivate; aligned rotation locking with account/team state transitions; general/security review found no P0/P1 and `pnpm check` passed 34 files/313 tests | Add bounded content-free administrative audit history; keep customer roles, entitlements, live database races, and staging human-gated |
+| 2026-08-25 | Added bounded account-scoped administrative audit history with strict stored-value validation and no metadata/actor-ID exposure; general/security review found no P0/P1 and `pnpm check` passed 34 files/317 tests | Add a bounded account inventory for R0 operators; keep customer roles, entitlements, live database races, external logs, and staging human-gated |
+| 2026-08-25 | Added an admin-token-protected bounded account metadata inventory for operator ID recovery; general/security review found no P0/P1 and `pnpm check` passed 34 files/320 tests | Move to the next safe source workstream; IAM idempotency, customer roles, entitlements, live PostgreSQL, and staging remain human-gated |
+| 2026-08-25 | Added safe source-controlled load profiles; fixed strict-review P1s for redirect target escape, broken documented invocation, success-profile guardrail mismatch, and all-denied admission false success; re-review found no P0/P1 and `pnpm check` passed 35 files/327 tests | Add source-controlled environment/configuration inventory; all remote load, soak, and capacity claims remain approval-gated |
+| 2026-08-25 | Added the complete typed Worker binding inventory, documented environment/secret ownership boundaries, and made inference enablement explicitly fail closed; strict general/security review found no remaining P0/P1 and `pnpm check` passed 36 files/333 tests | Human owner must choose isolated Cloudflare topology/owners/values before environment-specific Wrangler, CI, WAF, deployment, or external verification can safely proceed |
+| 2026-08-25 | Added a one-request content-free provider canary with strict remote/cost/credential/response gates; fixed the strict-review P1 normalized-contract false positive; confirmed the existing PR/main CI runs all required source checks; re-review found no P0/P1 and `pnpm check` passed 37 files/342 tests | Human owner must approve the isolated staging target, synthetic account ceiling, route, secret, monitoring, schedule, alert, and first live run |

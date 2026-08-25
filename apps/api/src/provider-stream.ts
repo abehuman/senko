@@ -9,6 +9,7 @@ export type ProviderAbortReason =
 	| "admission_lost"
 	| "client_aborted"
 	| "first_byte_timeout"
+	| "provider_pool_lost"
 	| "response_too_large"
 	| "stream_event_too_large"
 	| "stream_idle_timeout"
@@ -37,6 +38,11 @@ export interface ProviderRequestControl {
 	readonly reason: ProviderAbortReason | undefined;
 	readonly signal: AbortSignal;
 	touch(): void;
+}
+
+export interface ProviderStreamFinish {
+	completed: boolean;
+	reason?: ProviderAbortReason;
 }
 
 function timeoutDelay(deadlineAt: number, maximumDelay: number): number {
@@ -131,26 +137,27 @@ export function boundedProviderBody(options: {
 	control: ProviderRequestControl;
 	isEventStream: boolean;
 	limits: ProviderRequestLimits;
-	onFinish: () => Promise<void>;
+	onChunk?: (chunk: Uint8Array) => void;
+	onFinish: (result: ProviderStreamFinish) => Promise<void>;
 }): ReadableStream<Uint8Array> {
 	const reader = options.body.getReader();
 	const eventCounter = options.isEventStream ? new SseEventCounter(options.limits.maxSseEventBytes) : undefined;
 	let responseBytes = 0;
 	let finished = false;
-	const finishOnce = async (): Promise<void> => {
+	const finishOnce = async (result: ProviderStreamFinish): Promise<void> => {
 		if (finished) {
 			return;
 		}
 		finished = true;
 		options.control.finish();
-		await options.onFinish();
+		await options.onFinish(result);
 	};
 	const fail = async (reason: ProviderAbortReason): Promise<never> => {
 		options.control.abort(reason);
 		try {
 			await reader.cancel(reason);
 		} finally {
-			await finishOnce();
+			await finishOnce({ completed: false, reason });
 		}
 		throw new Error(reason);
 	};
@@ -161,7 +168,7 @@ export function boundedProviderBody(options: {
 			try {
 				await reader.cancel(reason);
 			} finally {
-				await finishOnce();
+				await finishOnce({ completed: false, reason: "client_aborted" });
 			}
 		},
 		async pull(controller) {
@@ -169,7 +176,7 @@ export function boundedProviderBody(options: {
 				const { done, value } = await reader.read();
 				if (done) {
 					controller.close();
-					await finishOnce();
+					await finishOnce({ completed: true });
 					return;
 				}
 				options.control.touch();
@@ -180,10 +187,11 @@ export function boundedProviderBody(options: {
 				if (eventCounter && !eventCounter.push(value)) {
 					await fail("stream_event_too_large");
 				}
+				options.onChunk?.(value);
 				controller.enqueue(value);
 			} catch (error) {
 				controller.error(error);
-				await finishOnce();
+				await finishOnce({ completed: false, reason: options.control.reason });
 			}
 		},
 	});
@@ -193,6 +201,7 @@ export async function readBoundedProviderJson(
 	body: ReadableStream<Uint8Array> | null,
 	control: ProviderRequestControl,
 	maxBytes = MAX_LLM_ERROR_BYTES,
+	onChunk?: (chunk: Uint8Array) => void,
 ): Promise<unknown | undefined> {
 	if (!body) {
 		return undefined;
@@ -208,6 +217,7 @@ export async function readBoundedProviderJson(
 			}
 			control.touch();
 			total += value.byteLength;
+			onChunk?.(value);
 			if (total > maxBytes) {
 				control.abort("response_too_large");
 				await reader.cancel("provider error body too large");

@@ -4,12 +4,18 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2026-08-23",
 	"compatibility_flags": ["enable_request_signal"],
+	"workers_dev": false,
+	"preview_urls": false,
 	"keep_vars": true,
 	"durable_objects": {
 		"bindings": [
 			{
 				"name": "SENKO_ADMISSION",
 				"class_name": "AdmissionController"
+			},
+			{
+				"name": "SENKO_PROVIDER_POOLS",
+				"class_name": "ProviderPoolController"
 			}
 		]
 	},
@@ -17,9 +23,16 @@
 		{
 			"tag": "v1",
 			"new_sqlite_classes": ["AdmissionController"]
+		},
+		{
+			"tag": "v2",
+			"new_sqlite_classes": ["ProviderPoolController"]
 		}
 	],
 	"observability": {
 		"enabled": true
+	},
+	"triggers": {
+		"crons": ["*/5 * * * *"]
 	}
 }

@@ -6,6 +6,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "pnpm db:check && wrangler deploy --dry-run --outdir dist",
+		"canary:provider": "node scripts/provider-canary.mjs",
 		"db:check": "drizzle-kit check",
 		"db:generate": "drizzle-kit generate",
 		"db:inspect": "node scripts/database.mjs inspect",
@@ -13,6 +14,7 @@
 		"db:verify": "node scripts/database.mjs verify",
 		"deploy": "wrangler deploy --minify",
 		"dev": "wrangler dev",
+		"load:profile": "node scripts/load-profile.mjs",
 		"typecheck": "tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {

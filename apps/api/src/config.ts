@@ -4,6 +4,7 @@ import {
 	type CloudflareBindings,
 	type ModelCatalog,
 	type ModelDefinition,
+	type ModelPricing,
 } from "./types";
 
 export type ConfigResult<T> = { ok: true; value: T } | { message: string; ok: false };
@@ -50,6 +51,25 @@ function readProtocols(value: unknown): ApiProtocol[] | undefined {
 	return protocols as ApiProtocol[];
 }
 
+function readPricing(value: unknown): ModelPricing | undefined {
+	if (!isRecord(value)) {
+		return undefined;
+	}
+	const version = readString(value.version);
+	const currency = readString(value.currency);
+	const inputPrice = readNonNegativeInteger(value.input_microunits_per_million_tokens);
+	const outputPrice = readNonNegativeInteger(value.output_microunits_per_million_tokens);
+	if (!version || !currency || !/^[A-Z]{3}$/.test(currency) || inputPrice === undefined || outputPrice === undefined) {
+		return undefined;
+	}
+	return {
+		currency,
+		input_microunits_per_million_tokens: inputPrice,
+		output_microunits_per_million_tokens: outputPrice,
+		version,
+	};
+}
+
 function parseModel(value: unknown, index: number): ConfigResult<ModelDefinition> {
 	if (!isRecord(value)) {
 		return { message: `SENKO_MODELS[${index}] must be an object.`, ok: false };
@@ -62,6 +82,7 @@ function parseModel(value: unknown, index: number): ConfigResult<ModelDefinition
 	const inputModalities = readStringArray(value.input_modalities);
 	const created = value.created === undefined ? 0 : readNonNegativeInteger(value.created);
 	const ownedBy = value.owned_by === undefined ? "senko" : readString(value.owned_by);
+	const pricing = value.pricing === undefined ? undefined : readPricing(value.pricing);
 
 	if (!id || !contextWindow || !maxOutputTokens || !supportedProtocols || !inputModalities) {
 		return {
@@ -74,6 +95,14 @@ function parseModel(value: unknown, index: number): ConfigResult<ModelDefinition
 	if (created === undefined || !ownedBy || typeof value.reasoning !== "boolean") {
 		return {
 			message: `SENKO_MODELS[${index}] has an invalid created, owned_by, or reasoning value.`,
+			ok: false,
+		};
+	}
+	if (value.pricing !== undefined && !pricing) {
+		return {
+			message:
+				`SENKO_MODELS[${index}].pricing requires version, a three-letter uppercase currency, ` +
+				"and non-negative input/output microunits per million tokens.",
 			ok: false,
 		};
 	}
@@ -90,6 +119,7 @@ function parseModel(value: unknown, index: number): ConfigResult<ModelDefinition
 			input_modalities: inputModalities,
 			max_output_tokens: maxOutputTokens,
 			owned_by: ownedBy,
+			pricing,
 			reasoning: value.reasoning,
 			supported_protocols: supportedProtocols,
 		},
@@ -182,4 +212,15 @@ export function getAuthenticationMode(env: CloudflareBindings): ConfigResult<Aut
 		message: 'Set SENKO_AUTH_MODE to either "database" or "bootstrap". No implicit authentication fallback is used.',
 		ok: false,
 	};
+}
+
+export function getInferenceEnabled(env: CloudflareBindings): ConfigResult<boolean> {
+	const value = env.SENKO_INFERENCE_ENABLED?.trim().toLowerCase();
+	if (value === "true") {
+		return { ok: true, value: true };
+	}
+	if (value === "false") {
+		return { ok: true, value: false };
+	}
+	return { message: 'Set SENKO_INFERENCE_ENABLED to either "true" or "false".', ok: false };
 }

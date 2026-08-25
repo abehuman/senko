@@ -32,6 +32,26 @@ export interface AdmissionClient {
 	renew(env: CloudflareBindings, leaseId: string): Promise<AdmissionRenewalResult>;
 }
 
+export async function checkAdmissionDependency(env: CloudflareBindings): Promise<boolean> {
+	if (!env.SENKO_ADMISSION) return false;
+	const controller = new AbortController();
+	const timeout = setTimeout(
+		() => controller.abort("admission dependency timeout"),
+		ADMISSION_RENEW_ATTEMPT_TIMEOUT_MS,
+	);
+	try {
+		const response = await env.SENKO_ADMISSION.getByName(ADMISSION_OBJECT_NAME).fetch(
+			"https://senko-admission/health",
+			{ signal: controller.signal },
+		);
+		return response.ok;
+	} catch {
+		return false;
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
 export type AdmissionRenewalResult =
 	| { leaseExpiresAt: number; ok: true }
 	| { ok: false; reason: "missing" | "unavailable" };
@@ -107,10 +127,14 @@ export class AdmissionController implements DurableObject {
 	constructor(private readonly state: DurableObjectState) {}
 
 	async fetch(request: Request): Promise<Response> {
+		const pathname = new URL(request.url).pathname;
+		if (request.method === "GET" && pathname === "/health") {
+			await this.state.storage.get(STATE_KEY);
+			return Response.json({ status: "ok" });
+		}
 		if (request.method !== "POST") {
 			return new Response("Method not allowed", { status: 405 });
 		}
-		const pathname = new URL(request.url).pathname;
 		const input = await parseAdmissionRequest(request, pathname);
 		if (!input) {
 			return new Response("Invalid admission request", { status: 400 });

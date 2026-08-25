@@ -1,0 +1,117 @@
+{
+	"schemaVersion": 1,
+	"bindings": [
+		{
+			"name": "SENKO_AUTH_MODE",
+			"kind": "text",
+			"managedBy": "cloudflare-dashboard",
+			"requiredFor": ["all"],
+			"operatorAction": "Set explicitly to database for managed staging/production; bootstrap is local or migration-only."
+		},
+		{
+			"name": "SENKO_DATABASE_URL",
+			"kind": "secret",
+			"managedBy": "cloudflare-secret",
+			"requiredFor": ["database"],
+			"operatorAction": "Create a distinct least-privilege runtime credential per environment and rotate it with database access verification."
+		},
+		{
+			"name": "SENKO_API_KEY_HASH_SECRET_V1",
+			"kind": "secret",
+			"managedBy": "cloudflare-secret",
+			"requiredFor": ["database"],
+			"operatorAction": "Assign an owner before staging; rotate only through a versioned key-hash migration and overlap plan."
+		},
+		{
+			"name": "SENKO_ADMIN_TOKEN",
+			"kind": "secret",
+			"managedBy": "cloudflare-secret",
+			"requiredFor": ["all"],
+			"operatorAction": "Assign an R0 operator owner, rotate after protected endpoint verification, and retire after customer-scoped administration exists."
+		},
+		{
+			"name": "SENKO_API_KEYS",
+			"kind": "secret",
+			"managedBy": "cloudflare-secret",
+			"requiredFor": ["bootstrap"],
+			"operatorAction": "Keep absent from database-mode staging/production and remove after the controlled bootstrap migration."
+		},
+		{
+			"name": "SENKO_MODELS",
+			"kind": "text",
+			"managedBy": "cloudflare-dashboard",
+			"requiredFor": ["all"],
+			"operatorAction": "Version the approved model and pricing catalog in release evidence before changing the Dashboard value."
+		},
+		{
+			"name": "SENKO_FAST_MODEL",
+			"kind": "text",
+			"managedBy": "cloudflare-dashboard",
+			"requiredFor": ["all"],
+			"operatorAction": "Record the resolved catalog model and compatibility impact before changing the alias."
+		},
+		{
+			"name": "SENKO_PROVIDER_ROUTES",
+			"kind": "text",
+			"managedBy": "cloudflare-dashboard",
+			"requiredFor": ["database"],
+			"operatorAction": "Version the approved route IDs, priorities, mappings, capacity, and secret binding names without secret values."
+		},
+		{
+			"name": "SENKO_PROVIDER_KEY_OPENAI",
+			"kind": "secret",
+			"managedBy": "cloudflare-secret",
+			"requiredFor": ["selected-provider-route"],
+			"operatorAction": "Assign an owner and rotate with an overlapping provider credential plus bounded route contract test."
+		},
+		{
+			"name": "SENKO_PROVIDER_KEY_OPENROUTER",
+			"kind": "secret",
+			"managedBy": "cloudflare-secret",
+			"requiredFor": ["selected-provider-route"],
+			"operatorAction": "Assign an owner and rotate with an overlapping provider credential plus bounded route contract test."
+		},
+		{
+			"name": "SENKO_PROVIDER_KEY_DEEPSEEK",
+			"kind": "secret",
+			"managedBy": "cloudflare-secret",
+			"requiredFor": ["selected-provider-route"],
+			"operatorAction": "Assign an owner and rotate with an overlapping provider credential plus bounded route contract test."
+		},
+		{
+			"name": "SENKO_INFERENCE_ENABLED",
+			"kind": "text",
+			"managedBy": "cloudflare-dashboard",
+			"requiredFor": ["all"],
+			"operatorAction": "Set explicitly and record every emergency disable/enable with the incident or release evidence."
+		},
+		{
+			"name": "LLM_API_BASE_URL",
+			"kind": "text",
+			"managedBy": "cloudflare-dashboard",
+			"requiredFor": ["bootstrap"],
+			"operatorAction": "Keep absent from database-mode staging/production; use only for the documented legacy bootstrap route."
+		},
+		{
+			"name": "LLM_API_KEY",
+			"kind": "secret",
+			"managedBy": "cloudflare-secret",
+			"requiredFor": ["bootstrap"],
+			"operatorAction": "Keep absent from database-mode staging/production and rotate only within the legacy bootstrap procedure."
+		},
+		{
+			"name": "SENKO_ADMISSION",
+			"kind": "durable_object",
+			"managedBy": "wrangler",
+			"requiredFor": ["all"],
+			"operatorAction": "Bind a distinct Durable Object namespace in each environment and verify migration/state isolation."
+		},
+		{
+			"name": "SENKO_PROVIDER_POOLS",
+			"kind": "durable_object",
+			"managedBy": "wrangler",
+			"requiredFor": ["database"],
+			"operatorAction": "Bind a distinct Durable Object namespace in each environment and verify route-state isolation."
+		}
+	]
+}

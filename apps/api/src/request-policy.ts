@@ -1,6 +1,6 @@
 import type { ApiProtocol, ModelDefinition } from "./types";
 
-const CHAT_ALLOWED_FIELDS = new Set([
+export const CHAT_REQUEST_FIELDS = [
 	"frequency_penalty",
 	"max_completion_tokens",
 	"max_tokens",
@@ -22,9 +22,9 @@ const CHAT_ALLOWED_FIELDS = new Set([
 	"tools",
 	"top_p",
 	"verbosity",
-]);
+] as const;
 
-const RESPONSES_ALLOWED_FIELDS = new Set([
+export const RESPONSES_REQUEST_FIELDS = [
 	"background",
 	"include",
 	"input",
@@ -42,7 +42,10 @@ const RESPONSES_ALLOWED_FIELDS = new Set([
 	"tools",
 	"top_p",
 	"truncation",
-]);
+] as const;
+
+const CHAT_ALLOWED_FIELDS = new Set<string>(CHAT_REQUEST_FIELDS);
+const RESPONSES_ALLOWED_FIELDS = new Set<string>(RESPONSES_REQUEST_FIELDS);
 
 const FORBIDDEN_FIELDS: Record<string, string> = {
 	conversation: "Provider-side conversations are not supported.",

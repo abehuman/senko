@@ -15,6 +15,20 @@ The initial migration defines:
 - `api_key_scopes`
 - `admin_audit_events`
 
+The pending usage-accounting migrations additionally define:
+
+- `account_usage_limits`
+- `account_usage_buckets`
+- `api_key_usage_limits`
+- `api_key_usage_buckets`
+- `usage_attempts`
+- `usage_ledger_entries`
+- `usage_pending_reservations`
+
+The following pending support migration defines:
+
+- `request_traces`
+
 Production and development/test databases are separate Railway Postgres services in the same Railway project and
 environment. Both are currently in Singapore and use Railway serverless mode. The exact service IDs are operational
 configuration documented in the repository's `AGENTS.md`; they are not duplicated in public runtime configuration.
@@ -61,9 +75,10 @@ Railway's PostgreSQL image generates its own certificate. The public connection 
 `sslmode=require` semantics and schema verification confirms that PostgreSQL reports TLS for the active session. This
 does not validate a public certificate authority; production credential and transport hardening remains an R2 gate.
 
-The initial migration was applied to the development/test Railway Postgres service on 2026-08-24. An independent live
+The initial IAM migration was applied to the development/test Railway Postgres service on 2026-08-24. An independent live
 verification observed PostgreSQL 18.6, one migration, eight IAM tables, 13 foreign keys, 27 check constraints, 23
-indexes, and an encrypted TLS session. The production database has not been migrated.
+indexes, and an encrypted TLS session. The generated account-usage, request-trace, and API-key-usage-limit migrations
+have not been applied to any live database. The production database has not been migrated.
 
 ## Security boundary
 
@@ -77,9 +92,36 @@ indexes, and an encrypted TLS session. The production database has not been migr
   writing it.
 - `updated_at` is application-managed; every mutation must update it in the same transaction.
 - `last_used_at` should be coalesced rather than updated on every inference request.
+- Usage attempts snapshot account/key ownership, model alias and resolution, provider attempt, policy/pricing versions,
+  optional API-key policy version, prices, currency, estimator, and reservation windows without storing prompts or
+  outputs.
+- Request traces contain only the Senko request ID, authenticated account/key IDs, endpoint/method, final HTTP
+  status/failure category, and timestamps. They are independent of usage reservation so authenticated rejected or
+  unconfigured customer API requests remain diagnosable without retaining request content. Unauthenticated traffic is
+  intentionally excluded to prevent a public PostgreSQL write-amplification path.
+- Ledger entries are append-only and unique per attempt/phase. Mutable account buckets hold only atomic reservation and
+  settlement aggregates; minute token dimensions and daily/monthly cost dimensions are kept disjoint by constraints.
+- Optional API-key limits must use the account currency and cannot exceed any account ceiling when configured. Their
+  buckets are updated in the same transaction after account buckets, so an API-key policy can only narrow the
+  authoritative account budget.
+- API-key rotation copies the source key's optional limit policy in the same transaction but starts the replacement
+  with empty key buckets. Policy operations share the lock order `account_usage_limits` -> `api_keys` ->
+  `api_key_usage_limits`; reservations omit the key-row lock and continue from account policy to key policy and
+  aggregate buckets.
+- Pending reservations are a small expiry-indexed work queue. Terminal settlement removes the queue row in the same
+  transaction; scheduled repair claims bounded batches with `FOR UPDATE SKIP LOCKED` instead of scanning ledger history.
 
 The Worker supports explicit `SENKO_AUTH_MODE=database` and `SENKO_AUTH_MODE=bootstrap` modes. It never silently falls
 back from an unavailable database to `SENKO_API_KEYS`. Database-mode keys are checked against key/account/team status,
-expiry, and endpoint scopes on every request. Management endpoints can create an account, issue a key once, and revoke a
-key with same-transaction audit events. Cloudflare secrets, a least-privilege runtime database role, and live Worker
-connectivity are still external release work.
+expiry, and endpoint scopes on every request. Protected R0 management endpoints can create and list bounded account
+metadata, create account-owned
+teams, suspend/reactivate accounts, and issue, list, rotate, and revoke keys. Every mutating operation writes its
+content-free audit event in the same transaction; repeated suspend/reactivate and revoke calls do not duplicate audit
+events. Team metadata listing is account-bound and bounded; archive/reactivate provides a reversible team-wide
+authentication stop. Reactivating a team makes its unexpired, unrevoked keys usable again, so compromised keys still
+require explicit revocation. Administrative audit history listing is account-bound and bounded, and excludes the JSON
+metadata and actor user/key identifiers rather than forwarding stored rows unchanged. Its action, actor, target, UUID,
+and request-ID allowlists fail closed when a new event shape has not been added to the public contract. Account/team suspension blocks
+authentication after its transaction commits but does not terminate requests that already passed authentication and
+started provider forwarding. Cloudflare secrets, a
+least-privilege runtime database role, and live Worker connectivity are still external release work.
