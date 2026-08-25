@@ -2296,11 +2296,16 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
 			if (!response.body) {
 				finalizeUsage("conservative_settled", "missing_provider_body");
 				completeProvider("failed", "missing_provider_body", response.status);
-				return new Response(null, {
-					headers: responseHeaders(response.headers, id, admission.rateLimit),
-					status: response.status,
-					statusText: response.statusText,
-				});
+				return withRateLimit(
+					apiError({
+						code: "invalid_llm_api_response",
+						message: "The configured LLM API returned an empty response.",
+						requestId: id,
+						status: 502,
+						type: "llm_api_error",
+					}),
+					admission.rateLimit,
+				);
 			}
 			if (!expectedStream) {
 				const responseBody = await readBoundedProviderJson(

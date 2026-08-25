@@ -1140,6 +1140,72 @@ describe("Senko API Worker", () => {
 		expect(await response.json()).toMatchObject({ error: { code: "llm_api_unavailable" } });
 	});
 
+	it("rejects successful provider responses without a body for JSON and SSE", async () => {
+		const release = vi.fn<ProviderPoolClient["release"]>().mockResolvedValue({
+			circuitOpenUntil: 0,
+			consecutiveFailures: 1,
+			released: true,
+		});
+		const app = testApp({
+			llmApiFetch: async (_input, init) =>
+				new Response(null, {
+					headers: {
+						"content-type": JSON.parse(String(init?.body)).stream === true ? "text/event-stream" : "application/json",
+					},
+					status: 200,
+				}),
+			providerPoolClient: { ...allowingProviderPoolClient, release },
+		});
+		const requests = [
+			{ body: { input: "hello", model: "fast" }, path: "/v1/responses" },
+			{ body: { messages: [], model: "fast", stream: true }, path: "/v1/chat/completions" },
+		];
+
+		for (const request of requests) {
+			const response = await app.request(
+				request.path,
+				{ body: JSON.stringify(request.body), headers: authHeaders(), method: "POST" },
+				env({
+					SENKO_PROVIDER_KEY_OPENAI: "route-secret",
+					SENKO_PROVIDER_ROUTES: JSON.stringify([
+						{
+							capacity: {
+								max_concurrent_requests: 10,
+								requests_per_minute: 120,
+								tokens_per_minute: 200_000,
+							},
+							destination: "openai",
+							id: "primary",
+							models: { [MODEL_ID]: "upstream/coding-model" },
+							priority: 0,
+							supported_protocols: ["openai-completions", "openai-responses"],
+						},
+					]),
+				}),
+			);
+
+			expect(response.status).toBe(502);
+			expect(await response.json()).toMatchObject({
+				error: { code: "invalid_llm_api_response", type: "llm_api_error" },
+			});
+		}
+		expect(release).toHaveBeenCalledTimes(2);
+		expect(release).toHaveBeenNthCalledWith(
+			1,
+			expect.anything(),
+			"primary",
+			expect.stringMatching(/^req_/),
+			"route_failure",
+		);
+		expect(release).toHaveBeenNthCalledWith(
+			2,
+			expect.anything(),
+			"primary",
+			expect.stringMatching(/^req_/),
+			"route_failure",
+		);
+	});
+
 	it("refuses provider redirects before credentials or request bodies can reach another origin", async () => {
 		const release = vi.fn<ProviderPoolClient["release"]>().mockResolvedValue({
 			circuitOpenUntil: 0,

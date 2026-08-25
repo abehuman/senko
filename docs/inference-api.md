@@ -102,9 +102,10 @@ Successful provider JSON is not forwarded unchanged. The adapter validates compl
 completed/incomplete/failed Responses core shapes, rebuilds allowed top-level fields, and replaces provider-reported model names with the
 resolved Senko model ID. Streaming data is buffered to event boundaries and re-emitted only after JSON, known event
 type, core chunk/response shape, and protocol terminator validation. Unknown, malformed, or unterminated streams are
-closed as failed. Provider redirects are rejected instead of forwarding the provider credential or customer request
-body to an origin outside the trusted registry; full field-level tool/reasoning fixtures for each eventual provider route
-remain pending.
+closed as failed. A successful provider status without a response body is also treated as an invalid provider response
+and returned as a Senko-owned `502` error instead of forwarding the provider status. Provider redirects are rejected
+instead of forwarding the provider credential or customer request body to an origin outside the trusted registry; full
+field-level tool/reasoning fixtures for each eventual provider route remain pending.
 
 ## Errors and operational metadata
 
