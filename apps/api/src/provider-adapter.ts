@@ -19,6 +19,7 @@ const RESPONSE_EVENT_TYPES = new Set([
 	"response.output_item.done",
 	"response.output_text.delta",
 	"response.output_text.done",
+	"response.queued",
 	"response.reasoning_summary_part.added",
 	"response.reasoning_summary_part.done",
 	"response.reasoning_summary_text.delta",
@@ -36,7 +37,7 @@ const RESPONSE_TERMINAL_EVENT_TYPES = new Set([
 	"response.incomplete",
 ]);
 
-const RESPONSE_STATUSES = new Set(["completed", "failed", "in_progress", "incomplete"]);
+const RESPONSE_STATUSES = new Set(["completed", "failed", "in_progress", "incomplete", "queued"]);
 const RESPONSE_ITEM_STATUSES = new Set(["completed", "failed", "in_progress", "incomplete"]);
 
 export class ProviderResponseValidationError extends Error {
@@ -211,15 +212,19 @@ function normalizeChatChoice(value: unknown): Record<string, unknown> {
 }
 
 function normalizeChatJson(value: Record<string, unknown>, resolvedModel: string): NormalizedProviderJson {
-	if (value.object !== "chat.completion" || !Array.isArray(value.choices) || value.choices.length === 0) {
+	if (value.object !== "chat.completion" || !Array.isArray(value.choices) || value.choices.length !== 1) {
 		throw new ProviderResponseValidationError();
 	}
 	requiredString(value.model);
 	const usage = normalizedUsage(value, "openai-completions");
 	const providerUsage = normalizeProviderUsage(value.usage, "openai-completions");
+	const choice = normalizeChatChoice(value.choices[0]);
+	if (choice.index !== 0) {
+		throw new ProviderResponseValidationError();
+	}
 	return {
 		body: {
-			choices: value.choices.map(normalizeChatChoice),
+			choices: [choice],
 			created: nonNegativeInteger(value.created),
 			id: requiredString(value.id),
 			model: resolvedModel,
@@ -450,7 +455,7 @@ function normalizeChatDelta(value: unknown): Record<string, unknown> {
 }
 
 function normalizeChatChunk(value: Record<string, unknown>, resolvedModel: string): Record<string, unknown> {
-	if (value.object !== "chat.completion.chunk" || !Array.isArray(value.choices)) {
+	if (value.object !== "chat.completion.chunk" || !Array.isArray(value.choices) || value.choices.length > 1) {
 		throw new ProviderResponseValidationError();
 	}
 	const choices = value.choices.map((choice) => {
@@ -463,6 +468,9 @@ function normalizeChatChunk(value: Record<string, unknown>, resolvedModel: strin
 			index: nonNegativeInteger(choice.index),
 		};
 	});
+	if ((choices.length === 1 && choices[0]?.index !== 0) || (choices.length === 0 && value.usage === undefined)) {
+		throw new ProviderResponseValidationError();
+	}
 	const normalized: Record<string, unknown> = {
 		choices,
 		created: nonNegativeInteger(value.created),
@@ -515,7 +523,7 @@ function normalizeResponseEvent(
 	}
 	if (
 		payloadType.startsWith("response.") &&
-		["created", "in_progress", "completed", "failed", "incomplete"].includes(payloadType.slice(9))
+		["created", "queued", "in_progress", "completed", "failed", "incomplete"].includes(payloadType.slice(9))
 	) {
 		if (!isRecord(value.response)) throw new ProviderResponseValidationError();
 		const expectedStatus = payloadType === "response.created" ? "in_progress" : payloadType.slice(9);
@@ -731,18 +739,19 @@ export class ProviderSseNormalizer {
 			return undefined;
 		}
 		if (data === "[DONE]") {
+			// Responses streams terminate with a typed response.* event. Accepting the
+			// Chat Completions sentinel here could overwrite an already validated
+			// Responses terminal classification with chat.completed.
+			if (this.protocol === "openai-responses") {
+				throw new ProviderResponseValidationError();
+			}
 			if (this.doneSeen) {
 				throw new ProviderResponseValidationError();
 			}
-			if (!this.terminalSeen && this.protocol === "openai-responses") {
+			if (this.terminalSeen || !this.usageSeen) {
 				throw new ProviderResponseValidationError();
 			}
-			if (this.protocol === "openai-completions") {
-				if (this.terminalSeen || !this.usageSeen) {
-					throw new ProviderResponseValidationError();
-				}
-				this.terminalSeen = true;
-			}
+			this.terminalSeen = true;
 			this.doneSeen = true;
 			this.terminalType = "chat.completed";
 			return "data: [DONE]\n\n";

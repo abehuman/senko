@@ -759,8 +759,9 @@ export function createPostgresIdentityService(clientFactory?: DatabaseClientFact
 							await rollback(client);
 							return { ok: false, reason: "conflict" };
 						}
-						// Shared usage-policy lock order: account_usage_limits -> api_keys -> api_key_usage_limits.
-						// configureApiKeyLimits and reserve begin with the same account policy lock, so rotation
+						// Shared usage-policy lock order:
+						// accounts -> account_usage_limits -> api_keys -> api_key_usage_limits.
+						// Policy updates and reservations follow the same ownership-first order, so rotation
 						// copies one committed key policy without introducing a lock-order cycle.
 						await client.query("select account_id from account_usage_limits where account_id = $1 for update", [
 							input.accountId,

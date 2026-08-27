@@ -57,7 +57,8 @@ be accepted at another.
   replacement through the approved secret channel.
 - Plaintext-returning issue/rotation calls are not yet retry-safe. Before customer administration or automated clients,
   require an idempotency contract that cannot duplicate keys or expose a cached secret to a different caller.
-- Concurrent rotation/revocation still requires real PostgreSQL and staging race tests.
+- Concurrent rotation, policy updates, and usage reservation have an isolated-schema regression on the development/test
+  PostgreSQL service. Staging race/load tests and concurrent revocation coverage remain open.
 
 ### Account and tenant isolation
 
@@ -89,10 +90,12 @@ be accepted at another.
 
 - Structured operational events use allowlisted metadata and negative tests; they exclude request/response content,
   tool data, authorization values, full keys, provider credentials, database URLs, and raw dependency errors.
-- Authenticated database-mode customer routes persist one final content-free envelope independently of usage
+- Authenticated database-mode inference routes persist one final content-free envelope independently of usage
   reservation. It contains only request/account/key IDs, endpoint/method, final HTTP status/failure category, and
-  timestamps; SSE finalization waits for terminal/cancel/error classification. Unauthenticated traffic never triggers
-  this PostgreSQL write. The operator lookup joins bounded usage metadata and returns `Cache-Control: no-store`.
+  timestamps; SSE finalization waits for terminal/cancel/error classification. Unauthenticated traffic and the
+  frequently polled `GET /v1/models` route never trigger this PostgreSQL write. Model discovery remains observable only
+  through content-free structured events, making its request-trace write rate and retention zero. The operator lookup
+  joins bounded usage metadata and returns `Cache-Control: no-store`.
 - Provider errors and headers are rebuilt from bounded allowlists. Senko emits its own rate-limit headers rather than
   provider-account limits.
 - Administrative audit listing binds both cursor and rows to the route account, caps each page, and rebuilds a
@@ -101,9 +104,9 @@ be accepted at another.
 - The global R0 account inventory is admin-token protected, cursor bounded, and limited to account metadata. It does
   not join API keys, usage, teams, audit metadata, or customer content; account-scoped roles must replace it before
   customer self-service administration.
-- Request-trace retention/deletion, invalid-auth write-abuse protection, Cloudflare log destinations, sampling, staff
-  access, incident exports, and future customer-scoped support authorization must be configured and tested before
-  staging or production claims.
+- Inference request-trace retention/deletion, Cloudflare log destinations, sampling, staff access, incident exports,
+  and future customer-scoped support authorization must be configured and tested before staging or production claims.
+  Invalid-auth and model-discovery traffic have no request-trace database write path.
 
 ### Availability and failure handling
 
@@ -117,7 +120,8 @@ be accepted at another.
 ## Required verification before customer administration
 
 1. Apply the reviewed schema to an isolated development/test database and use a least-privilege runtime role.
-2. Race rotation, revocation, authentication, and account limit reservation on real PostgreSQL.
+2. Extend the development/test PostgreSQL rotation/reservation race coverage to revocation and authentication, then run
+   bounded staging race/load tests.
 3. Verify no raw key or authorization value appears in Worker, Railway, CI, dashboard, alert, or support logs.
 4. Add and test management idempotency for one-time-secret responses.
 5. Replace the global R0 operator token with account-scoped user/session authorization and audited roles.

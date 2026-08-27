@@ -583,6 +583,36 @@ describe("database-backed identity routes", () => {
 		expect(recordRequest).not.toHaveBeenCalled();
 	});
 
+	it("does not persist request traces for authenticated model discovery", async () => {
+		const recordRequest = vi.fn<SupportService["recordRequest"]>();
+		const touchLastUsed = vi.fn<IdentityService["touchLastUsed"]>().mockResolvedValue({ ok: true, value: undefined });
+		const waitUntil = vi.fn();
+		const app = createApp({
+			identityService: identity({ touchLastUsed }),
+			supportService: {
+				async lookupRequest() {
+					return { ok: false, reason: "not_found" };
+				},
+				recordRequest,
+			},
+		});
+		const response = await app.request(
+			"/v1/models",
+			{ headers: { authorization: "Bearer managed-key" } },
+			env({
+				SENKO_API_KEY_HASH_SECRET_V1: "test-hash-secret-that-is-at-least-32-bytes-long",
+				SENKO_DATABASE_URL:
+					"postgresql://runtime-user:runtime-password@example.invalid/senko?uselibpqcompat=true&sslmode=require",
+			}),
+			{ waitUntil } as unknown as ExecutionContext,
+		);
+
+		expect(response.status).toBe(200);
+		expect(recordRequest).not.toHaveBeenCalled();
+		expect(touchLastUsed).toHaveBeenCalledWith(expect.any(Object), KEY_ID);
+		expect(waitUntil).toHaveBeenCalledOnce();
+	});
+
 	it("authenticates a database key, enforces scope, and defers last-used persistence", async () => {
 		const touchLastUsed = vi.fn<IdentityService["touchLastUsed"]>().mockResolvedValue({ ok: true, value: undefined });
 		const waitUntil = vi.fn();

@@ -1,7 +1,8 @@
 # Senko API provider canary
 
 This canary sends exactly one content-free inference request through a deployed Senko API and validates the normalized
-response, usage, request ID, and output-token ceiling. Adding the script does not authorize a remote run or schedule.
+response, usage, request ID, output-token ceiling, and non-empty assistant output. Adding the script does not authorize
+a remote run or schedule.
 
 ## Safety boundary
 
@@ -13,6 +14,9 @@ response, usage, request ID, and output-token ceiling. Adding the script does no
   bounded to two minutes, and at most 1 MiB of response data is read.
 - The fixed prompt contains no customer content. Results include only status, timing, Senko request ID, resolved model,
   usage counts, and response bytes; generated content is never retained or printed.
+- A structurally valid 200 response still fails when Responses has no non-blank assistant output/refusal or Chat
+  Completions has only an empty assistant message. Reasoning or tool-call metadata alone is not a successful result for
+  this fixed text canary.
 - An approved remote run must use a dedicated synthetic account/key with an account cost ceiling and a selected route.
   It is an availability signal, not a capacity or customer-data test.
 

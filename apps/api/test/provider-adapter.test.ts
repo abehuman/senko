@@ -236,6 +236,42 @@ describe("provider response adapters", () => {
 		);
 	});
 
+	it.each([
+		{ choices: [chatBody().choices[0], { ...chatBody().choices[0], index: 1 }], name: "multiple choices" },
+		{ choices: [{ ...chatBody().choices[0], index: 1 }], name: "a nonzero choice index" },
+	])("rejects Chat JSON with $name", ({ choices }) => {
+		expect(() => normalizeProviderJson({ ...chatBody(), choices }, "openai-completions", RESOLVED_MODEL)).toThrow(
+			ProviderResponseValidationError,
+		);
+	});
+
+	it.each([
+		{
+			choices: [
+				{ delta: { content: "first" }, finish_reason: null, index: 0 },
+				{ delta: { content: "second" }, finish_reason: null, index: 1 },
+			],
+			name: "multiple choices",
+		},
+		{ choices: [{ delta: { content: "wrong" }, finish_reason: null, index: 1 }], name: "a nonzero index" },
+		{ choices: [], name: "empty choices without terminal usage" },
+	])("rejects Chat SSE chunks with $name", ({ choices }) => {
+		const normalizer = new ProviderSseNormalizer("openai-completions", RESOLVED_MODEL);
+		expect(() =>
+			normalizer.push(
+				new TextEncoder().encode(
+					`data: ${JSON.stringify({
+						choices,
+						created: 1,
+						id: "chatcmpl_invalid",
+						model: "provider/upstream-model",
+						object: "chat.completion.chunk",
+					})}\n\n`,
+				),
+			),
+		).toThrow(ProviderResponseValidationError);
+	});
+
 	it("validates and normalizes Chat Completions SSE across arbitrary chunks", () => {
 		const firstOutput = vi.fn();
 		const normalizer = new ProviderSseNormalizer("openai-completions", RESOLVED_MODEL, firstOutput);
@@ -405,6 +441,58 @@ describe("provider response adapters", () => {
 			),
 		);
 		expect(() => unterminated.finish()).toThrow(ProviderResponseValidationError);
+	});
+
+	it("normalizes response.queued as a nonterminal event and still requires a typed terminal event", () => {
+		const queuedResponse = { ...responseBody(), output: [], status: "queued", usage: undefined };
+		const queued = `event: response.queued\ndata: ${JSON.stringify({
+			response: queuedResponse,
+			sequence_number: 1,
+			type: "response.queued",
+		})}\n\n`;
+		const completed = `event: response.completed\ndata: ${JSON.stringify({
+			response: responseBody(),
+			sequence_number: 2,
+			type: "response.completed",
+		})}\n\n`;
+
+		const stream = new ProviderSseNormalizer("openai-responses", RESOLVED_MODEL);
+		const text = [...stream.push(new TextEncoder().encode(queued + completed)), ...stream.finish()]
+			.map((chunk) => new TextDecoder().decode(chunk))
+			.join("");
+		expect(text).toContain("event: response.queued");
+		expect(text).toContain('"status":"queued"');
+		expect(stream.getTerminalType()).toBe("response.completed");
+
+		const queuedOnly = new ProviderSseNormalizer("openai-responses", RESOLVED_MODEL);
+		queuedOnly.push(new TextEncoder().encode(queued));
+		expect(() => queuedOnly.finish()).toThrow(ProviderResponseValidationError);
+		expect(() => normalizeProviderJson(queuedResponse, "openai-responses", RESOLVED_MODEL)).toThrow(
+			ProviderResponseValidationError,
+		);
+	});
+
+	it("rejects the Chat [DONE] sentinel for Responses without overwriting a terminal type", () => {
+		const beforeTerminal = new ProviderSseNormalizer("openai-responses", RESOLVED_MODEL);
+		expect(() => beforeTerminal.push(new TextEncoder().encode("data: [DONE]\n\n"))).toThrow(
+			ProviderResponseValidationError,
+		);
+		expect(beforeTerminal.getTerminalType()).toBeUndefined();
+
+		const afterTerminal = new ProviderSseNormalizer("openai-responses", RESOLVED_MODEL);
+		afterTerminal.push(
+			new TextEncoder().encode(
+				`event: response.completed\ndata: ${JSON.stringify({
+					response: responseBody(),
+					sequence_number: 1,
+					type: "response.completed",
+				})}\n\n`,
+			),
+		);
+		expect(() => afterTerminal.push(new TextEncoder().encode("data: [DONE]\n\n"))).toThrow(
+			ProviderResponseValidationError,
+		);
+		expect(afterTerminal.getTerminalType()).toBe("response.completed");
 	});
 
 	it("requires nested terminal response usage and strips unknown event fields", () => {

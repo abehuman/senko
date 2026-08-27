@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDependencyHealthService, type DependencyProbes } from "../src/dependency-health";
+import {
+	createDependencyHealthService,
+	type DependencyProbes,
+	databaseDependencyFromTables,
+	IDENTITY_STORAGE_TABLES,
+	USAGE_LEDGER_TABLES,
+} from "../src/dependency-health";
 import type { CloudflareBindings } from "../src/types";
 
 const MODEL_ID = "provider/coding-model";
@@ -61,6 +67,19 @@ function probes(overrides: Partial<DependencyProbes> = {}): DependencyProbes {
 }
 
 describe("protected dependency health", () => {
+	it("requires every identity and usage table instead of accepting a partial schema", () => {
+		const allTables = [...IDENTITY_STORAGE_TABLES, ...USAGE_LEDGER_TABLES];
+		expect(databaseDependencyFromTables(allTables)).toEqual({ identityStorage: true, usageLedger: true });
+		expect(databaseDependencyFromTables(allTables.filter((table) => table !== "users"))).toEqual({
+			identityStorage: false,
+			usageLedger: true,
+		});
+		expect(databaseDependencyFromTables(allTables.filter((table) => table !== "account_usage_buckets"))).toEqual({
+			identityStorage: true,
+			usageLedger: false,
+		});
+	});
+
 	it("checks database, admission, and each distinct configured provider pool without contacting providers", async () => {
 		const providerPool = vi.fn<DependencyProbes["providerPool"]>().mockResolvedValue(true);
 		const result = await createDependencyHealthService(probes({ providerPool })).check(env());

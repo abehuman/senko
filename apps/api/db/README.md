@@ -15,7 +15,7 @@ The initial migration defines:
 - `api_key_scopes`
 - `admin_audit_events`
 
-The pending usage-accounting migrations additionally define:
+The usage-accounting migrations additionally define:
 
 - `account_usage_limits`
 - `account_usage_buckets`
@@ -25,7 +25,7 @@ The pending usage-accounting migrations additionally define:
 - `usage_ledger_entries`
 - `usage_pending_reservations`
 
-The following pending support migration defines:
+The support migration defines:
 
 - `request_traces`
 
@@ -62,7 +62,11 @@ railway run --no-local \
 ```
 
 The migration command rejects unexpected public tables, uses bounded lock and statement timeouts, applies only pending
-generated migrations, and then verifies the table, foreign-key, check-constraint, index, and migration-history contract.
+generated migrations, and then verifies the exact ordered migration count/timestamps/SQL hashes plus the table,
+column-name/type/nullability, foreign-key, check-constraint, and index contract. A partial migration history or manual
+column drift fails verification even when the remaining tables still exist. Before inspecting or mutating state, the
+command performs a bounded read-only retry for Railway serverless wake-up; migration statements themselves are not
+automatically replayed.
 Development and test work must target the development/test Railway Postgres service; production migration is a separate
 release operation requiring its own approval.
 
@@ -75,10 +79,10 @@ Railway's PostgreSQL image generates its own certificate. The public connection 
 `sslmode=require` semantics and schema verification confirms that PostgreSQL reports TLS for the active session. This
 does not validate a public certificate authority; production credential and transport hardening remains an R2 gate.
 
-The initial IAM migration was applied to the development/test Railway Postgres service on 2026-08-24. An independent live
-verification observed PostgreSQL 18.6, one migration, eight IAM tables, 13 foreign keys, 27 check constraints, 23
-indexes, and an encrypted TLS session. The generated account-usage, request-trace, and API-key-usage-limit migrations
-have not been applied to any live database. The production database has not been migrated.
+All six generated migrations (`0000` through `0005`) were applied to the development/test Railway Postgres service by
+2026-08-27. An independent live verification observed PostgreSQL 18.6, six exact migration hashes, 16 application
+tables, 22 foreign keys, 76 check constraints, 46 indexes, the expected column contract, and an encrypted TLS session.
+The production database has not been migrated.
 
 ## Security boundary
 
@@ -97,17 +101,19 @@ have not been applied to any live database. The production database has not been
   outputs.
 - Request traces contain only the Senko request ID, authenticated account/key IDs, endpoint/method, final HTTP
   status/failure category, and timestamps. They are independent of usage reservation so authenticated rejected or
-  unconfigured customer API requests remain diagnosable without retaining request content. Unauthenticated traffic is
-  intentionally excluded to prevent a public PostgreSQL write-amplification path.
+  unconfigured inference requests remain diagnosable without retaining request content. Unauthenticated traffic and
+  frequently polled `GET /v1/models` discovery are intentionally excluded, preventing those paths from amplifying
+  PostgreSQL writes or accumulating request-trace retention.
 - Ledger entries are append-only and unique per attempt/phase. Mutable account buckets hold only atomic reservation and
   settlement aggregates; minute token dimensions and daily/monthly cost dimensions are kept disjoint by constraints.
 - Optional API-key limits must use the account currency and cannot exceed any account ceiling when configured. Their
   buckets are updated in the same transaction after account buckets, so an API-key policy can only narrow the
   authoritative account budget.
 - API-key rotation copies the source key's optional limit policy in the same transaction but starts the replacement
-  with empty key buckets. Policy operations share the lock order `account_usage_limits` -> `api_keys` ->
-  `api_key_usage_limits`; reservations omit the key-row lock and continue from account policy to key policy and
-  aggregate buckets.
+  with empty key buckets. Policy operations and reservations share the ownership-first lock order `accounts` ->
+  `account_usage_limits` -> `api_keys` -> `api_key_usage_limits` -> attempts -> account/key aggregate buckets.
+- Terminal ledger rows persist the original post-settlement over-limit result so idempotent retries return the first
+  committed result rather than recomputing it from newer policy or aggregate state.
 - Pending reservations are a small expiry-indexed work queue. Terminal settlement removes the queue row in the same
   transaction; scheduled repair claims bounded batches with `FOR UPDATE SKIP LOCKED` instead of scanning ledger history.
 

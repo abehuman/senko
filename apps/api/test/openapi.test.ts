@@ -110,6 +110,35 @@ describe("Senko OpenAPI contract", () => {
 		expect(schema("ResponsesRequest").additionalProperties).toBe(false);
 	});
 
+	it("documents nested inference inputs and normalized JSON success envelopes", () => {
+		const chatRequest = record(schema("ChatCompletionRequest").properties);
+		expect(record(record(chatRequest.messages).items)).toEqual({ $ref: "#/components/schemas/ChatMessage" });
+		const responsesInput = record(record(schema("ResponsesRequest").properties).input);
+		const responseArray = (responsesInput.oneOf as unknown[])
+			.map(record)
+			.find((candidate) => candidate.type === "array");
+		expect(record(responseArray?.items)).toEqual({ $ref: "#/components/schemas/ResponsesInputItem" });
+		expect(schema("FunctionTool")).toMatchObject({ additionalProperties: false, required: ["function", "type"] });
+
+		for (const [path, expectedRef] of [
+			["/v1/chat/completions", "#/components/schemas/ChatCompletion"],
+			["/v1/responses", "#/components/schemas/Response"],
+		] as const) {
+			const responses = record(operation(path, "post").responses);
+			const content = record(record(responses["200"]).content);
+			expect(record(record(content["application/json"]).schema)).toEqual({ $ref: expectedRef });
+		}
+
+		const chatCompletion = schema("ChatCompletion");
+		const choice = record(record(record(chatCompletion.properties).choices).items);
+		expect(record(record(choice.properties).index)).toEqual({ const: 0 });
+		expect(record(chatCompletion.properties).usage).toBeDefined();
+		const response = schema("Response");
+		expect(record(record(response.properties).output).items).toBeDefined();
+		expect(record(record(response.properties).status).enum).toEqual(["completed", "failed", "incomplete"]);
+		expect(response.allOf).toBeDefined();
+	});
+
 	it("documents management allowlists and does not expose secret binding names", () => {
 		expect(Object.keys(record(schema("CreateAccountRequest").properties)).sort()).toEqual(["name", "plan_key"]);
 		expect(Object.keys(record(schema("CreateTeamRequest").properties))).toEqual(["name"]);

@@ -17,6 +17,7 @@ const MIGRATIONS = [
 	"0002_complete_guardsmen.sql",
 	"0003_optimal_tana_nile.sql",
 	"0004_lyrical_valkyrie.sql",
+	"0005_spooky_nova.sql",
 ] as const;
 const PRICING: ModelPricing = {
 	currency: "USD",
@@ -49,6 +50,22 @@ function quotedIdentifier(value: string): string {
 	return `"${value}"`;
 }
 
+async function connectPostgres(connectionString: string): Promise<Client> {
+	let lastError: unknown;
+	for (let attempt = 0; attempt < 6; attempt += 1) {
+		const database = new Client({ connectionString });
+		try {
+			await database.connect();
+			return database;
+		} catch (error) {
+			lastError = error;
+			await database.end().catch(() => undefined);
+			if (attempt < 5) await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+		}
+	}
+	throw lastError;
+}
+
 async function applyMigrations(database: Client, schemaName: string): Promise<void> {
 	const schema = quotedIdentifier(schemaName);
 	const migrationDirectory = join(dirname(fileURLToPath(import.meta.url)), "../db/migrations");
@@ -61,6 +78,15 @@ async function applyMigrations(database: Client, schemaName: string): Promise<vo
 			const sql = statement.trim();
 			if (sql) await database.query(sql);
 		}
+	}
+}
+
+async function dropIsolatedSchema(connectionString: string, schemaName: string): Promise<void> {
+	const cleanup = await connectPostgres(connectionString);
+	try {
+		await cleanup.query(`drop schema if exists ${quotedIdentifier(schemaName)} cascade`);
+	} finally {
+		await cleanup.end().catch(() => undefined);
 	}
 }
 
@@ -97,24 +123,25 @@ function keyHash(): string {
 	return randomUUID().replaceAll("-", "").repeat(2);
 }
 
-describe.skipIf(!enabled)("Railway PostgreSQL API-key rotation", () => {
-	it("serializes rotation with reservation and preserves the per-key ceiling", async () => {
+describe.skipIf(!enabled)("Railway PostgreSQL usage locking and API-key rotation", () => {
+	it("uses ownership-first locking while rotation and reservation preserve the per-key ceiling", async () => {
 		const baseConnectionString = testConnectionString();
 		const schemaName = `senko_rotation_${randomUUID().replaceAll("-", "")}`;
 		const accountId = randomUUID();
 		const sourceKeyId = randomUUID();
-		const database = new Client({ connectionString: baseConnectionString });
+		const database = await connectPostgres(baseConnectionString);
 		let blocker: Client | undefined;
 		let blockerTransactionOpen = false;
 		let schemaCreated = false;
 
 		try {
-			await database.connect();
 			await cleanupInterruptedPublicRun(database);
-			await applyMigrations(database, schemaName);
+			// Mark before applying migrations because a transient connection failure can
+			// occur after CREATE SCHEMA but before the migration batch completes.
 			schemaCreated = true;
+			await applyMigrations(database, schemaName);
 			const connectionString = scopedConnectionString(baseConnectionString, schemaName);
-			blocker = new Client({ connectionString });
+			blocker = await connectPostgres(connectionString);
 			await database.query("insert into accounts (id, name, plan_key) values ($1, $2, 'beta')", [
 				accountId,
 				INTERRUPTED_TEST_ACCOUNT_NAME,
@@ -144,10 +171,9 @@ describe.skipIf(!enabled)("Railway PostgreSQL API-key rotation", () => {
 				[sourceKeyId, accountId],
 			);
 
-			await blocker.connect();
 			await blocker.query("begin");
 			blockerTransactionOpen = true;
-			await blocker.query("select account_id from account_usage_limits where account_id = $1 for update", [accountId]);
+			await blocker.query("select id from accounts where id = $1 for update", [accountId]);
 
 			const env = {
 				SENKO_API_KEY_HASH_SECRET_V1: HASH_SECRET,
@@ -184,6 +210,13 @@ describe.skipIf(!enabled)("Railway PostgreSQL API-key rotation", () => {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 			expect(rotationSettled).toBe(false);
 			expect(reservationSettled).toBe(false);
+			// An account administrator must still be able to acquire the policy row while
+			// reservations wait on account ownership. The old policy-first order held this
+			// row and then waited on the account FK, forming a cycle with this transaction.
+			await blocker.query("set local lock_timeout = '1s'");
+			await expect(
+				blocker.query("select account_id from account_usage_limits where account_id = $1 for update", [accountId]),
+			).resolves.toMatchObject({ rowCount: 1 });
 			await blocker.query("commit");
 			blockerTransactionOpen = false;
 
@@ -242,10 +275,9 @@ describe.skipIf(!enabled)("Railway PostgreSQL API-key rotation", () => {
 			if (blockerTransactionOpen) await blocker?.query("rollback").catch(() => undefined);
 			await blocker?.end().catch(() => undefined);
 			if (schemaCreated) {
-				await database.query("set search_path to public").catch(() => undefined);
-				await database.query(`drop schema ${quotedIdentifier(schemaName)} cascade`).catch(() => undefined);
+				await dropIsolatedSchema(baseConnectionString, schemaName).catch(() => undefined);
 			}
 			await database.end().catch(() => undefined);
 		}
-	}, 20_000);
+	}, 40_000);
 });

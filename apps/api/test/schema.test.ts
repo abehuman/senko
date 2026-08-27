@@ -151,4 +151,10 @@ describe("usage accounting database schema", () => {
 		expect(getTableColumns(apiKeyUsageBuckets).accountId.notNull).toBe(true);
 		expect(getTableColumns(apiKeyUsageLimits).accountId.notNull).toBe(true);
 	});
+
+	it("persists the terminal over-limit result for idempotent settlement retries", () => {
+		const columns = getTableColumns(usageLedgerEntries);
+		expect(columns.overLimitAfterSettlement.notNull).toBe(true);
+		expect(columns.overLimitAfterSettlement.hasDefault).toBe(true);
+	});
 });

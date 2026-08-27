@@ -257,6 +257,25 @@ describe("PostgreSQL request support lookup", () => {
 		expect(String(query.mock.calls[0]?.[0])).toContain("on conflict (request_id) do nothing");
 	});
 
+	it("rejects model-discovery request-trace writes at the storage boundary", async () => {
+		const factory = vi.fn();
+		const service = createPostgresSupportService(factory);
+
+		await expect(
+			service.recordRequest(env(), {
+				accountId: ACCOUNT_ID,
+				apiKeyId: KEY_ID,
+				completedAt: new Date("2026-08-24T00:01:00.000Z"),
+				endpoint: "models" as never,
+				httpStatus: 200,
+				method: "GET",
+				requestId: REQUEST_ID,
+				startedAt: new Date("2026-08-24T00:00:00.000Z"),
+			}),
+		).resolves.toEqual({ ok: false, reason: "unavailable" });
+		expect(factory).not.toHaveBeenCalled();
+	});
+
 	it("fails closed on configuration, storage, or unsafe numeric data", async () => {
 		const factory = vi.fn();
 		const service = createPostgresSupportService(factory);

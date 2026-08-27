@@ -71,8 +71,8 @@ import {
 import { ProviderUsageObserver } from "./provider-usage";
 import { normalizeLlmApiRequest } from "./request-policy";
 import {
+	type PersistedRequestTraceEndpoint,
 	postgresSupportService,
-	type RequestTraceEndpoint,
 	type SupportResult,
 	type SupportService,
 	validRequestId,
@@ -158,8 +158,9 @@ function endpointFor(method: string, path: string): OperationalEventInput["endpo
 	return "other";
 }
 
-function requestTraceEndpoint(endpoint: OperationalEventInput["endpoint"]): RequestTraceEndpoint | undefined {
-	return endpoint === "models" || endpoint === "chat_completions" || endpoint === "responses" ? endpoint : undefined;
+function requestTraceEndpoint(endpoint: OperationalEventInput["endpoint"]): PersistedRequestTraceEndpoint | undefined {
+	// Model discovery is frequently polled. Keep it out of request_traces so its write rate and retention are both zero.
+	return endpoint === "chat_completions" || endpoint === "responses" ? endpoint : undefined;
 }
 
 function failureCategoryForStatus(status: number): FailureCategory | undefined {

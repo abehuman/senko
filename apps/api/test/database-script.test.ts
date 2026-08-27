@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
+
 // @ts-expect-error The operational JavaScript module intentionally has no declaration file.
-import { EXPECTED_TABLES, validateDatabaseTarget } from "../scripts/database.mjs";
+const databaseScript = await import("../scripts/database.mjs");
+const {
+	EXPECTED_MIGRATION_COUNT,
+	EXPECTED_MIGRATION_HISTORY,
+	EXPECTED_SCHEMA_COLUMNS,
+	EXPECTED_TABLES,
+	migrationHistoryErrors,
+	schemaColumnErrors,
+	validateDatabaseTarget,
+	waitForDatabase,
+} = databaseScript;
 
 const targetEnvironment = {
 	DATABASE_PUBLIC_URL: "postgresql://user:password@example.invalid/database",
@@ -69,5 +80,70 @@ describe("database operation target guard", () => {
 			"usage_pending_reservations",
 			"users",
 		]);
+	});
+
+	it("requires the complete ordered migration history and SQL hashes", () => {
+		expect(EXPECTED_MIGRATION_COUNT).toBe(6);
+		expect(migrationHistoryErrors(EXPECTED_MIGRATION_HISTORY)).toEqual([]);
+		expect(migrationHistoryErrors(EXPECTED_MIGRATION_HISTORY.slice(0, -1))).toContainEqual(
+			expect.stringContaining("Expected 6 Drizzle migration records"),
+		);
+		expect(
+			migrationHistoryErrors([
+				{ ...EXPECTED_MIGRATION_HISTORY[0], hash: "tampered" },
+				...EXPECTED_MIGRATION_HISTORY.slice(1),
+			]),
+		).toContainEqual(expect.stringContaining("does not match the repository journal and SQL hash"));
+	});
+
+	it("detects missing, extra, nullable, and type-drifted columns from the latest snapshot", () => {
+		expect(schemaColumnErrors(EXPECTED_SCHEMA_COLUMNS)).toEqual([]);
+		expect(
+			EXPECTED_SCHEMA_COLUMNS.some(
+				(column: { columnName: string; tableName: string }) =>
+					column.tableName === "usage_ledger_entries" && column.columnName === "over_limit_after_settlement",
+			),
+		).toBe(true);
+		const withoutLatestColumn = EXPECTED_SCHEMA_COLUMNS.filter(
+			(column: { columnName: string; tableName: string }) =>
+				!(column.tableName === "usage_ledger_entries" && column.columnName === "over_limit_after_settlement"),
+		);
+		expect(schemaColumnErrors(withoutLatestColumn)).toContainEqual(
+			expect.stringContaining("Missing or changed columns"),
+		);
+		const changedType = EXPECTED_SCHEMA_COLUMNS.map(
+			(column: { columnName: string; notNull: boolean; tableName: string; type: string }) =>
+				column.tableName === "accounts" && column.columnName === "name" ? { ...column, type: "text" } : column,
+		);
+		expect(schemaColumnErrors(changedType)).toEqual([
+			expect.stringContaining("Missing or changed columns"),
+			expect.stringContaining("Unexpected or changed columns"),
+		]);
+	});
+
+	it("bounds Railway serverless wake-up retries before any database operation", async () => {
+		const attempts: string[] = [];
+		const pool = {
+			async query(sql: string) {
+				attempts.push(sql);
+				if (attempts.length < 3) throw new Error("the database system is starting up");
+				return { rows: [{ "?column?": 1 }] };
+			},
+		};
+		await expect(
+			waitForDatabase(pool, { attempts: 3, delayMs: 0, sleep: async () => undefined }),
+		).resolves.toBeUndefined();
+		expect(attempts).toEqual(["select 1", "select 1", "select 1"]);
+
+		await expect(
+			waitForDatabase(
+				{
+					async query() {
+						throw new Error("still unavailable");
+					},
+				},
+				{ attempts: 2, delayMs: 0, sleep: async () => undefined },
+			),
+		).rejects.toThrow("still unavailable");
 	});
 });

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
 	bigint,
+	boolean,
 	char,
 	check,
 	foreignKey,
@@ -499,6 +500,7 @@ export const usageLedgerEntries = pgTable(
 		settledCostMicrounits: bigint("settled_cost_microunits", { mode: "number" }).default(0).notNull(),
 		usageSource: varchar("usage_source", { enum: USAGE_SOURCES, length: 24 }).notNull(),
 		terminalReason: varchar("terminal_reason", { length: 64 }),
+		overLimitAfterSettlement: boolean("over_limit_after_settlement").default(false).notNull(),
 		createdAt: createdAt(),
 	},
 	(table) => [

@@ -36,6 +36,13 @@
 			"when": 1787594943495,
 			"tag": "0004_lyrical_valkyrie",
 			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1787646837260,
+			"tag": "0005_spooky_nova",
+			"breakpoints": true
 		}
 	]
 }

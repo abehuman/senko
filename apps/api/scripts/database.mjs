@@ -1,9 +1,19 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { readMigrationFiles } from "drizzle-orm/migrator";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 
 const { Pool } = pg;
+const MIGRATIONS_FOLDER = fileURLToPath(new URL("../db/migrations", import.meta.url));
+const EXPECTED_MIGRATIONS = readMigrationFiles({ migrationsFolder: MIGRATIONS_FOLDER });
+
+export const EXPECTED_MIGRATION_COUNT = EXPECTED_MIGRATIONS.length;
+export const EXPECTED_MIGRATION_HISTORY = EXPECTED_MIGRATIONS.map((migration) => ({
+	created_at: migration.folderMillis,
+	hash: migration.hash,
+}));
 
 export const EXPECTED_TABLES = [
 	"account_memberships",
@@ -155,6 +165,34 @@ const EXPECTED_INDEXES = [
 	"users_status_idx",
 ];
 
+function normalizeSnapshotType(type) {
+	const varchar = /^varchar\((\d+)\)$/.exec(type);
+	if (varchar) return `character varying(${varchar[1]})`;
+	const char = /^char\((\d+)\)$/.exec(type);
+	if (char) return `character(${char[1]})`;
+	return type;
+}
+
+function readExpectedSchemaColumns() {
+	const snapshotIndex = String(EXPECTED_MIGRATION_COUNT - 1).padStart(4, "0");
+	const snapshot = JSON.parse(readFileSync(`${MIGRATIONS_FOLDER}/meta/${snapshotIndex}_snapshot.json`, "utf8"));
+	return Object.values(snapshot.tables)
+		.filter((table) => EXPECTED_TABLES.includes(table.name))
+		.flatMap((table) =>
+			Object.values(table.columns).map((column) => ({
+				columnName: column.name,
+				notNull: column.notNull === true,
+				tableName: table.name,
+				type: normalizeSnapshotType(column.type),
+			})),
+		)
+		.sort((left, right) =>
+			`${left.tableName}.${left.columnName}`.localeCompare(`${right.tableName}.${right.columnName}`),
+		);
+}
+
+export const EXPECTED_SCHEMA_COLUMNS = readExpectedSchemaColumns();
+
 const TARGET_FIELDS = [
 	["project", "RAILWAY_PROJECT_ID", "SENKO_EXPECTED_RAILWAY_PROJECT_ID"],
 	["environment", "RAILWAY_ENVIRONMENT_ID", "SENKO_EXPECTED_RAILWAY_ENVIRONMENT_ID"],
@@ -195,6 +233,63 @@ function missing(expected, actual) {
 	return expected.filter((name) => !actualSet.has(name));
 }
 
+function migrationIdentity(migration) {
+	return `${Number(migration.created_at)}:${migration.hash}`;
+}
+
+export function migrationHistoryErrors(appliedMigrations) {
+	const errors = [];
+	if (appliedMigrations.length !== EXPECTED_MIGRATION_COUNT) {
+		errors.push(
+			`Expected ${EXPECTED_MIGRATION_COUNT} Drizzle migration records but found ${appliedMigrations.length}.`,
+		);
+	}
+	for (let index = 0; index < Math.min(appliedMigrations.length, EXPECTED_MIGRATION_COUNT); index += 1) {
+		const expected = EXPECTED_MIGRATIONS[index];
+		const applied = appliedMigrations[index];
+		if (migrationIdentity(applied) !== `${expected.folderMillis}:${expected.hash}`) {
+			errors.push(`Drizzle migration record ${index + 1} does not match the repository journal and SQL hash.`);
+		}
+	}
+	return errors;
+}
+
+function columnIdentity(column) {
+	return `${column.tableName}.${column.columnName}:${column.type}:${column.notNull ? "not-null" : "nullable"}`;
+}
+
+export function schemaColumnErrors(actualColumns) {
+	const expected = EXPECTED_SCHEMA_COLUMNS.map(columnIdentity);
+	const actual = actualColumns.map(columnIdentity);
+	const missingColumns = missing(expected, actual);
+	const unexpectedColumns = missing(actual, expected);
+	const errors = [];
+	if (missingColumns.length > 0) errors.push(`Missing or changed columns: ${missingColumns.join(", ")}.`);
+	if (unexpectedColumns.length > 0) errors.push(`Unexpected or changed columns: ${unexpectedColumns.join(", ")}.`);
+	return errors;
+}
+
+export async function waitForDatabase(
+	pool,
+	{
+		attempts = 8,
+		delayMs = 2_000,
+		sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+	} = {},
+) {
+	let lastError;
+	for (let attempt = 0; attempt < attempts; attempt += 1) {
+		try {
+			await pool.query("select 1");
+			return;
+		} catch (error) {
+			lastError = error;
+			if (attempt + 1 < attempts) await sleep(delayMs);
+		}
+	}
+	throw lastError;
+}
+
 async function readDatabaseState(pool) {
 	const [identity, tables, migrationTable] = await Promise.all([
 		pool.query(
@@ -217,6 +312,7 @@ async function readDatabaseState(pool) {
 		serverVersion: identity.rows[0]?.server_version,
 		tables: tables.rows.map((row) => row.tablename),
 		tlsEnabled: identity.rows[0]?.tls_enabled === true,
+		migrationTablePresent: Boolean(migrationTable.rows[0]?.migration_table),
 	};
 }
 
@@ -225,7 +321,10 @@ async function verifyDatabase(pool) {
 	const unexpectedTables = state.tables.filter((table) => !EXPECTED_TABLES.includes(table));
 	const missingTables = missing(EXPECTED_TABLES, state.tables);
 
-	const [foreignKeys, checkConstraints, indexes] = await Promise.all([
+	const migrationHistoryPromise = state.migrationTablePresent
+		? pool.query("select hash, created_at from drizzle.__drizzle_migrations order by created_at, id")
+		: Promise.resolve({ rows: [] });
+	const [foreignKeys, checkConstraints, indexes, columns, migrationHistory] = await Promise.all([
 		pool.query(
 			"select conname from pg_catalog.pg_constraint where contype = 'f' and connamespace = current_schema()::regnamespace order by conname",
 		),
@@ -233,6 +332,16 @@ async function verifyDatabase(pool) {
 			"select conname from pg_catalog.pg_constraint where contype = 'c' and connamespace = current_schema()::regnamespace order by conname",
 		),
 		pool.query("select indexname from pg_catalog.pg_indexes where schemaname = current_schema() order by indexname"),
+		pool.query(
+			`select c.relname as table_name, a.attname as column_name,
+				format_type(a.atttypid, a.atttypmod) as data_type, a.attnotnull as not_null
+			 from pg_catalog.pg_attribute a
+			 join pg_catalog.pg_class c on c.oid = a.attrelid
+			 join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+			 where n.nspname = current_schema() and c.relkind = 'r' and a.attnum > 0 and not a.attisdropped
+			 order by c.relname, a.attnum`,
+		),
+		migrationHistoryPromise,
 	]);
 
 	const missingForeignKeys = missing(
@@ -250,7 +359,17 @@ async function verifyDatabase(pool) {
 
 	const errors = [];
 	if (!state.tlsEnabled) errors.push("The public PostgreSQL connection is not using TLS.");
-	if (state.appliedMigrations < 1) errors.push("No Drizzle migration record exists.");
+	errors.push(...migrationHistoryErrors(migrationHistory.rows));
+	errors.push(
+		...schemaColumnErrors(
+			columns.rows.map((column) => ({
+				columnName: column.column_name,
+				notNull: column.not_null === true,
+				tableName: column.table_name,
+				type: column.data_type,
+			})),
+		),
+	);
 	if (missingTables.length > 0) errors.push(`Missing tables: ${missingTables.join(", ")}.`);
 	if (unexpectedTables.length > 0) errors.push(`Unexpected public tables: ${unexpectedTables.join(", ")}.`);
 	if (missingForeignKeys.length > 0) errors.push(`Missing foreign keys: ${missingForeignKeys.join(", ")}.`);
@@ -284,6 +403,9 @@ async function main() {
 	});
 
 	try {
+		// Railway serverless PostgreSQL can reject the first connection while waking.
+		// Retry only this read-only preflight; migration statements are never retried here.
+		await waitForDatabase(pool);
 		const initialState = await readDatabaseState(pool);
 		const targetSummary = {
 			environmentId: target.environmentId,
@@ -312,7 +434,7 @@ async function main() {
 			await pool.query("set statement_timeout = '60s'");
 			const database = drizzle({ client: pool });
 			await migrate(database, {
-				migrationsFolder: fileURLToPath(new URL("../db/migrations", import.meta.url)),
+				migrationsFolder: MIGRATIONS_FOLDER,
 			});
 		}
 

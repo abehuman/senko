@@ -167,6 +167,7 @@ interface UsageBucketRow {
 
 interface UsageTerminalRow {
 	event_type: string;
+	over_limit_after_settlement: boolean;
 	settled_cost_microunits: number | string;
 	settled_input_tokens: number | string;
 	settled_output_tokens: number | string;
@@ -355,7 +356,19 @@ export function createPostgresUsageService(clientFactory?: DatabaseClientFactory
 			return run(env, async (client) => {
 				await client.query("begin");
 				try {
-					// Shared with key rotation: account_usage_limits -> api_keys -> api_key_usage_limits.
+					const account = await client.query<StatusRow>("select status from accounts where id = $1 for share", [
+						input.accountId,
+					]);
+					if (!account.rows[0]) {
+						await rollback(client);
+						return { ok: false, reason: "not_found" };
+					}
+					if (account.rows[0].status !== "active") {
+						await rollback(client);
+						return { ok: false, reason: "conflict" };
+					}
+					// Shared with account policy updates, key rotation, and reservation:
+					// accounts -> account_usage_limits -> api_keys -> api_key_usage_limits.
 					const accountLimitsResult = await client.query<UsageLimitRow>(
 						`select account_id, policy_version, currency, minute_input_tokens, minute_output_tokens,
 							max_request_cost_microunits, daily_cost_microunits, monthly_cost_microunits
@@ -528,8 +541,10 @@ export function createPostgresUsageService(clientFactory?: DatabaseClientFactory
 			return run(env, async (client) => {
 				await client.query("begin");
 				try {
-					// Reservation omits the api_keys row but preserves the shared policy order:
-					// account_usage_limits -> api_key_usage_limits -> aggregate buckets.
+					// Lock ownership before policy rows so account/key administration cannot form a cycle
+					// through usage_attempts foreign keys. Account and key locks are shared; quota
+					// serialization remains on policy and bucket rows.
+					await client.query("select id from accounts where id = $1 for share", [input.accountId]);
 					const limitsResult = await client.query<UsageLimitRow>(
 						`select account_id, policy_version, currency, minute_input_tokens, minute_output_tokens,
 							max_request_cost_microunits, daily_cost_microunits, monthly_cost_microunits
@@ -541,6 +556,10 @@ export function createPostgresUsageService(clientFactory?: DatabaseClientFactory
 						await rollback(client);
 						return { ok: false, reason: "unconfigured" };
 					}
+					await client.query("select id from api_keys where id = $1 and account_id = $2 for share", [
+						input.apiKeyId,
+						input.accountId,
+					]);
 					const keyLimitsResult = await client.query<UsageLimitRow & { api_key_id: string }>(
 						`select api_key_id, account_id, policy_version, currency, minute_input_tokens, minute_output_tokens,
 							max_request_cost_microunits, daily_cost_microunits, monthly_cost_microunits
@@ -879,7 +898,8 @@ export function createPostgresUsageService(clientFactory?: DatabaseClientFactory
 					}
 
 					const existingResult = await client.query<UsageTerminalRow>(
-						`select event_type, terminal_reason, settled_input_tokens, settled_output_tokens, settled_cost_microunits
+						`select event_type, terminal_reason, settled_input_tokens, settled_output_tokens, settled_cost_microunits,
+							over_limit_after_settlement
 						 from usage_ledger_entries where attempt_id = $1 and phase = 'terminal' for update`,
 						[input.attemptId],
 					);
@@ -893,7 +913,13 @@ export function createPostgresUsageService(clientFactory?: DatabaseClientFactory
 							safeInteger(existing.settled_cost_microunits) === settledCost;
 						await client.query(matches ? "commit" : "rollback");
 						return matches
-							? { ok: true, value: { overLimitAfterSettlement: false, settledCostMicrounits: settledCost } }
+							? {
+									ok: true,
+									value: {
+										overLimitAfterSettlement: existing.over_limit_after_settlement,
+										settledCostMicrounits: settledCost,
+									},
+								}
 							: { ok: false, reason: "conflict" };
 					}
 
@@ -1027,27 +1053,6 @@ export function createPostgresUsageService(clientFactory?: DatabaseClientFactory
 							}
 						}
 					}
-					const source = input.kind === "settled" ? "provider" : input.kind === "released" ? "none" : "reservation";
-					await client.query(
-						`insert into usage_ledger_entries
-							(attempt_id, account_id, phase, event_type, released_input_tokens, released_output_tokens,
-							 released_cost_microunits, settled_input_tokens, settled_output_tokens, settled_cost_microunits,
-							 usage_source, terminal_reason)
-						 values ($1, $2, 'terminal', $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-						[
-							input.attemptId,
-							input.accountId,
-							input.kind,
-							reservedInput,
-							reservedOutput,
-							reservedCost,
-							settledUsage.inputTokens,
-							settledUsage.outputTokens,
-							settledCost,
-							source,
-							input.terminalReason,
-						],
-					);
 					const deletedPending = await client.query(
 						"delete from usage_pending_reservations where attempt_id = $1 and account_id = $2",
 						[input.attemptId, input.accountId],
@@ -1150,6 +1155,28 @@ export function createPostgresUsageService(clientFactory?: DatabaseClientFactory
 								settledCost,
 							) > keyLimits.monthlyCostMicrounits);
 					const overLimitAfterSettlement = accountOverLimitAfterSettlement || keyOverLimitAfterSettlement;
+					const source = input.kind === "settled" ? "provider" : input.kind === "released" ? "none" : "reservation";
+					await client.query(
+						`insert into usage_ledger_entries
+							(attempt_id, account_id, phase, event_type, released_input_tokens, released_output_tokens,
+							 released_cost_microunits, settled_input_tokens, settled_output_tokens, settled_cost_microunits,
+							 usage_source, terminal_reason, over_limit_after_settlement)
+						 values ($1, $2, 'terminal', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+						[
+							input.attemptId,
+							input.accountId,
+							input.kind,
+							reservedInput,
+							reservedOutput,
+							reservedCost,
+							settledUsage.inputTokens,
+							settledUsage.outputTokens,
+							settledCost,
+							source,
+							input.terminalReason,
+							overLimitAfterSettlement,
+						],
+					);
 					await client.query("commit");
 					return { ok: true, value: { overLimitAfterSettlement, settledCostMicrounits: settledCost } };
 				} catch (error) {

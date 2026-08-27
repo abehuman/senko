@@ -186,8 +186,8 @@ Status: **In progress**
 - [x] Implement immediate revocation for new requests.
 - [x] Implement operator-only bounded key metadata listing and overlapping rotation without an outage window; the source
   key remains active until separately revoked.
-- [x] Preserve an optional per-key usage-limit policy during rotation under the shared account-policy/key-policy lock
-  order; replacement-key usage buckets start empty.
+- [x] Preserve an optional per-key usage-limit policy during rotation under the shared account/account-policy/key/
+  key-policy lock order; replacement-key usage buckets start empty.
 - [x] Make last-used updates bounded and failure-tolerant so they cannot block inference.
 - [ ] Add model and plan entitlements at the account level and optional narrower restrictions at the key level.
 - [x] Enforce fixed account-level request and concurrency safety ceilings independently of key count.
@@ -259,9 +259,10 @@ Exit criteria:
 
 ## USG — Usage, quota, and cost control
 
-Status: **Partial** — five-table schema, reservation/settlement, account limits, expiry-indexed repair queue, and kill
-switch are source-complete locally; live migration, provider-price decision, cache/reasoning pricing, invoice
-reconciliation, alerts, and real concurrency/load evidence remain open.
+Status: **Partial** — schema, reservation/settlement, account limits, expiry-indexed repair queue, and kill switch are
+source-complete; all generated migrations and the ownership-first concurrency regression are verified on the
+development/test PostgreSQL service. Provider-price decisions, cache/reasoning pricing, invoice reconciliation, alerts,
+staging/production migration, and real load evidence remain open.
 
 ### Reservation and settlement
 
@@ -275,10 +276,12 @@ reconciliation, alerts, and real concurrency/load evidence remain open.
 - [x] Atomically settle actual input/output cost and release unused reservation capacity.
 - [x] Define conservative settlement for cancellation, timeout, malformed terminal data, missing usage, and expired
   reservations.
-- [ ] Make reserve, settle, release, retry, and webhook/reconciliation writes idempotent. Base reservation, terminal
-  settlement, and expiry retry are idempotent; invoice/webhook reconciliation is pending.
-- [ ] Prevent concurrent requests or multiple keys from overspending the same account budget. SQL locking is implemented;
-  real PostgreSQL race/load evidence is pending.
+- [ ] Make reserve, settle, release, retry, and webhook/reconciliation writes idempotent. Base reservation and terminal
+  settlement retries return their original immutable reservation and post-settlement over-limit results, and expiry
+  retry is idempotent. Invoice/webhook reconciliation remains pending.
+- [ ] Prevent concurrent requests or multiple keys from overspending the same account budget. Ownership-first SQL
+  locking and a real development/test PostgreSQL rotation/reservation deadlock regression are verified; bounded
+  staging load/overspend evidence remains pending.
 
 ### Limits and reconciliation
 
@@ -545,7 +548,8 @@ Exit criteria:
 2. **Provider contract layer:** implement one adapter for both protocols, normalize terminal usage/model/error behavior,
    and add malformed/incomplete-stream fixtures before adding a second route.
 3. **Usage ledger:** add idempotent reservation and settlement with account token/spend ceilings and failure-state tests.
-   **Base source-complete; live migration, pricing decision, provider reconciliation, and concurrency evidence pending.**
+   **Base source-complete; development/test migration and concurrency regression verified; pricing decisions, provider
+   reconciliation, staging/production migration, and bounded load evidence pending.**
 4. **Operational events:** emit the minimum complete redacted event set and build staging dashboards/alerts.
 5. **Staging boundary:** create isolated Cloudflare configuration, real Durable Object tests, dependency-health/canary
    checks, and a controlled staging deployment workflow.
@@ -562,9 +566,7 @@ remains the next external IAM verification slice and requires separate approval 
   `SENKO_AUTH_MODE=database` in Cloudflare.
 - [ ] From a real staging Worker, verify account creation, one-time key issue, scoped authentication, and immediate
   revocation against the development/test database.
-- [ ] Review and separately approve the generated usage-accounting migration for the development/test database.
-- [ ] Review and separately approve the generated API-key usage-limit migration `0004` for the development/test
-  database.
+- [x] Review, apply, and strictly verify all generated migrations `0000` through `0005` on the development/test database.
 - [ ] After D-004 is resolved, configure versioned model pricing and explicit account usage limits in staging, then verify
   reservation, terminal settlement, conservative settlement, and scheduled expiry repair end to end.
 
@@ -622,7 +624,10 @@ by this deferred task.
 | 2026-08-25 | OpenAPI source contract | Public `GET /openapi.json`; distinct customer/admin bearer schemes; operation scopes; all implemented routes; runtime-shared inference allowlists; bounded management schemas; no secret binding names; strict security review has no remaining P0/P1 | Covered by the later 33-file/273-test `pnpm check`; production custom-domain publication and compatibility-policy approval/publication remain unverified |
 | 2026-08-25 | API-key lifecycle, security model, and provider robustness | Account-bound bounded metadata listing; overlapping rotation with locked source validation, inherited ownership/scopes, one-time secret response, replacement metadata, and audit event; security threat model; injected slow/oversized/malformed/abrupt/never-ending provider cases; strict review P1 OpenAPI composition fix; general/security re-review has no remaining P0/P1 | `pnpm check` passed with 33 files/273 tests, all lint/typechecks/builds, migration check, and Wrangler dry-run; management idempotency, customer admin roles, real PostgreSQL races, external log/provider validation, staging, and production remain open |
 | 2026-08-25 | Content-free request support trace | Authenticated request envelopes persist final HTTP/failure state independently of usage reservation; bounded admin lookup joins request, provider-attempt, reservation, and ledger metadata; unauthenticated traffic cannot amplify PostgreSQL writes; streaming requests finalize only after body completion; strict review P1 fixes covered pre-reservation failures, unauthenticated write amplification, and premature streaming success; general/security re-review has no remaining P0/P1 | `pnpm check` passed with 34 files/285 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; migration `0003`, retention/access policy, live PostgreSQL, staging, and production remain unverified |
-| 2026-08-25 | API-key usage ceilings | Optional account-owned key policies and buckets; management contract; account-first transactional reservation, settlement, and expiry repair; key policy snapshot; cross-account schema guards; narrower-than-account validation; general/security/schema strict review with no P0/P1 | `pnpm check` passed with 34 files/294 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; migration `0004`, real PostgreSQL races, staging, and production remain unverified |
+| 2026-08-25 | API-key usage ceilings | Optional account-owned key policies and buckets; management contract; account-first transactional reservation, settlement, and expiry repair; key policy snapshot; cross-account schema guards; narrower-than-account validation; general/security/schema strict review with no P0/P1 | Local verification passed; all migrations and the rotation/reservation concurrency regression were later verified on development/test PostgreSQL; staging, production, and bounded load remain unverified |
+| 2026-08-27 | Development/test schema and concurrency verification | Applied all six generated migrations; exact history hash and latest snapshot-column checks; bounded Railway serverless wake-up retry; ownership-first rotation/reservation deadlock regression | Independent verification passed on the development/test service: PostgreSQL 18.6, 6 migrations, 16 tables, 22 foreign keys, 76 checks, 46 indexes, expected columns, and TLS; production remained unchanged |
+| 2026-08-27 | Model-discovery trace write boundary | Excluded authenticated and unauthenticated `GET /v1/models` from PostgreSQL request traces; retained content-free structured request events and coalesced key last-used updates | Model-list polling has zero request-trace write rate and retention; inference traces remain enabled; focused database-mode route regression passed |
+| 2026-08-27 | Strict-review P2 closure | Ownership-first usage locks; immutable settlement admission result; strict Chat/Responses terminals and choice cardinality; concrete OpenAPI schemas; exact dependency/schema verification; non-empty provider canary output; zero-write model-discovery traces | `pnpm check` passed with all lint/typechecks/builds, migration check, Wrangler dry-run, Workerd integration, and 362 local tests; the isolated development/test PostgreSQL concurrency test passed separately; real-provider traffic, deployment, and production remained unexecuted |
 | 2026-08-25 | R0 team and account lifecycle | Protected account-owned team creation; serialized, idempotent account suspend/reactivate; same-transaction content-free audit events; OpenAPI, threat-model, and recovery-runbook boundaries; general/security strict review with no P0/P1 | `pnpm check` passed with 34 files/304 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; live PostgreSQL races, in-flight cancellation policy, staging, and production remain unverified |
 | 2026-08-25 | Bounded team lifecycle | Account-bound cursor listing; idempotent archive/reactivate; team-wide new-authentication pause; account/key/team lock ordering for issue/rotation/status races; OpenAPI and recovery semantics; general/security strict review with no P0/P1 | `pnpm check` passed with 34 files/313 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; live PostgreSQL races, staging, and production remain unverified |
 | 2026-08-25 | Content-free administrative audit history | Account-bound cursor pagination; strict allowlists for action, actor, target, identifiers, and request IDs; response rebuilding that excludes stored metadata and actor IDs; unknown stored values fail closed; OpenAPI and operator runbook; general/security strict review with no P0/P1 | `pnpm check` passed with 34 files/317 tests, all lint/typechecks/builds, migration check, Wrangler dry-run, and Workerd integration; live PostgreSQL, external log destination, staging, and production remain unverified |
@@ -650,7 +655,8 @@ by this deferred task.
 | 2026-08-25 | Added a source-controlled OpenAPI 3.1 discovery route and contract tests for route/auth/scope/allowlist drift; strict security review reports no P0/P1; `pnpm check` passes 33 files/263 tests | Define compatibility/versioning/deprecation policy, then continue safe operational runbooks while publication remains deployment-gated |
 | 2026-08-25 | Added account-bound API-key listing, overlapping rotation, security threat model, Durable Object eviction/expiry coverage, and provider failure injection; fixed the strict-review OpenAPI composition P1; `pnpm check` passes 33 files/273 tests | Add content-free support lookup and management mutation idempotency while customer roles and external verification remain human-gated |
 | 2026-08-25 | Added authenticated content-free request envelopes and bounded support lookup; fixed strict-review P1s for pre-reservation failures, unauthenticated database writes, and premature stream finalization; `pnpm check` passes 34 files/285 tests | Continue local contract/failure-path verification; management idempotency, retention/access policy, migration, and external verification remain human-gated |
-| 2026-08-25 | Added optional API-key token/spend ceilings that can only narrow the account policy, including atomic reservation/settlement/repair and protected management/OpenAPI contracts; general/security/schema review found no P0/P1 and `pnpm check` passed 34 files/294 tests | Continue the next safe local workstream; keep migration `0004` and live race/staging verification human-gated |
+| 2026-08-25 | Added optional API-key token/spend ceilings that can only narrow the account policy, including atomic reservation/settlement/repair and protected management/OpenAPI contracts; general/security/schema review found no P0/P1 and `pnpm check` passed 34 files/294 tests | Continue the next safe local workstream; development/test migration and rotation/reservation race were later verified, while staging/production and bounded load remain gated |
+| 2026-08-27 | Completed all ten strict-review P2 follow-ups and verified the full repository plus the development/test PostgreSQL concurrency regression | Resume the remaining production-release workstreams; real-provider contracts, Cloudflare staging, retention operations, load/soak, billing/reconciliation, and production remain separately gated |
 | 2026-08-25 | Added protected R0 team creation and serialized, audited, idempotent account suspend/reactivate; general/security review found no P0/P1 and `pnpm check` passed 34 files/304 tests | Add bounded team lifecycle management while customer roles, entitlements, live database races, and staging remain human-gated |
 | 2026-08-25 | Added account-bound team listing and audited archive/reactivate; aligned rotation locking with account/team state transitions; general/security review found no P0/P1 and `pnpm check` passed 34 files/313 tests | Add bounded content-free administrative audit history; keep customer roles, entitlements, live database races, and staging human-gated |
 | 2026-08-25 | Added bounded account-scoped administrative audit history with strict stored-value validation and no metadata/actor-ID exposure; general/security review found no P0/P1 and `pnpm check` passed 34 files/317 tests | Add a bounded account inventory for R0 operators; keep customer roles, entitlements, live database races, external logs, and staging human-gated |

@@ -82,14 +82,18 @@ parallel tool calls, tool results, stop reasons, and usage. Streaming terminates
 ### `POST /v1/responses`
 
 Implements the OpenAI Responses event stream, including output text, reasoning summaries when supported, function
-calls, function-call outputs, terminal response events, and usage.
+calls, function-call outputs, terminal response events, and usage. Responses streams terminate with a validated typed
+terminal event; the Chat Completions-only `[DONE]` sentinel is rejected on this protocol. The official
+`response.queued` event is accepted as a nonterminal lifecycle event, but a non-stream queued response is rejected
+because this service does not expose background requests.
 
 Both endpoints accept `model: "fast"`. Every response and terminal stream event reports the resolved underlying model
 identifier rather than only echoing the alias.
 
 Request bodies are limited to 1 MiB and rejected with `413 request_too_large` before JSON parsing or LLM API forwarding.
 Each request is capped at 16,384 output tokens or the selected model's lower `max_output_tokens` value. Chat Completions
-supports exactly one choice (`n: 1`) so a client cannot multiply generations inside one admitted request.
+supports exactly one choice (`n: 1`) so a client cannot multiply generations inside one admitted request. Provider JSON
+and ordinary SSE chunks must contain exactly choice index `0`; only the final usage chunk may have empty `choices`.
 
 The Worker rebuilds requests from protocol-specific top-level allowlists instead of forwarding arbitrary JSON. It
 supports the text, reasoning, response-format, prompt-cache-key, and client-defined function-tool fields used by the
@@ -106,6 +110,8 @@ closed as failed. A successful provider status without a response body is also t
 and returned as a Senko-owned `502` error instead of forwarding the provider status. Provider redirects are rejected
 instead of forwarding the provider credential or customer request body to an origin outside the trusted registry; full
 field-level tool/reasoning fixtures for each eventual provider route remain pending.
+The published OpenAPI document describes supported nested messages, content parts, function tools, tool results,
+structured-output controls, and normalized JSON success envelopes instead of generic object placeholders.
 
 ## Errors and operational metadata
 

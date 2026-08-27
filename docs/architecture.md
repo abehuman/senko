@@ -58,9 +58,9 @@ it has no fields for prompt/generated content, tool payloads, raw keys, credenti
 receive a Worker-generated `x-request-id` plus Senko-owned rate-limit metadata. Billing, user login/customer-facing
 management, provider latency/cost-aware routing and post-attempt fallback, dashboards, and alerts remain outside this runtime.
 The public `/health` endpoint checks only Worker liveness. An admin-token-protected `/admin/v1/dependency-health` endpoint
-checks production-mode configuration, identity and usage-ledger tables, the global admission object, and every distinct
-configured provider-pool object without contacting a provider or returning connection/error details. External provider
-availability remains a separate bounded canary concern.
+checks production-mode configuration, every required identity and usage-ledger table, the global admission object, and
+every distinct configured provider-pool object without contacting a provider or returning connection/error details. A
+partial table set is unhealthy. External provider availability remains a separate bounded canary concern.
 
 Railway managed PostgreSQL in Singapore is the system of record for persistent identity and base usage accounting. Production
 and development/test databases are separate services in the same Railway project and environment. The versioned Drizzle
@@ -70,11 +70,15 @@ Railway's public PostgreSQL endpoint, creates and closes a bounded client per id
 process-global pool. Account creation, one-time API-key issuance, and revocation use a separate management Bearer token
 and append an audit event in the same transaction. Raw keys are never persisted; request authentication uses public-ID
 lookup plus HMAC verification and coalesces non-blocking `last_used_at` updates. Connection pooling is deferred until
-measured latency or connection pressure justifies it. The initial migration is applied only to the development/test
-database; production is unmigrated, and runtime secrets/role plus live Worker connectivity remain unconfigured.
+measured latency or connection pressure justifies it. All six generated migrations are applied and independently
+verified only on the development/test database; production is unmigrated, and runtime secrets/role plus live Worker
+connectivity remain unconfigured.
 Replacement keys inherit an optional source-key usage-limit policy during the rotation transaction while starting with
-empty per-key aggregate buckets. Rotation, policy updates, and reservations share an account-policy-first lock order so
-concurrent rotation cannot publish an unrestricted replacement key or introduce a key-policy lock cycle.
+empty per-key aggregate buckets. Rotation, policy updates, and reservations lock account ownership before account
+policy, API-key ownership, key policy, attempts, and aggregate buckets. This order prevents configuration and reservation
+transactions from holding opposing foreign-key/policy locks while preserving account-first quota enforcement.
+Terminal usage ledger rows also persist the original post-settlement over-limit result, so an idempotent retry returns
+the same admission signal even if policies or aggregate usage change later.
 
 ## Runtime flow
 

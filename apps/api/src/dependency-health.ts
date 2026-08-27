@@ -27,6 +27,36 @@ interface DatabaseDependencyResult {
 	usageLedger: boolean;
 }
 
+export const IDENTITY_STORAGE_TABLES = [
+	"account_memberships",
+	"accounts",
+	"admin_audit_events",
+	"api_key_scopes",
+	"api_keys",
+	"team_memberships",
+	"teams",
+	"users",
+] as const;
+
+export const USAGE_LEDGER_TABLES = [
+	"account_usage_buckets",
+	"account_usage_limits",
+	"api_key_usage_buckets",
+	"api_key_usage_limits",
+	"request_traces",
+	"usage_attempts",
+	"usage_ledger_entries",
+	"usage_pending_reservations",
+] as const;
+
+export function databaseDependencyFromTables(tableNames: readonly string[]): DatabaseDependencyResult {
+	const tables = new Set(tableNames);
+	return {
+		identityStorage: IDENTITY_STORAGE_TABLES.every((table) => tables.has(table)),
+		usageLedger: USAGE_LEDGER_TABLES.every((table) => tables.has(table)),
+	};
+}
+
 export interface DependencyProbes {
 	admission(env: CloudflareBindings): Promise<boolean>;
 	database(env: CloudflareBindings): Promise<DatabaseDependencyResult>;
@@ -40,22 +70,14 @@ const defaultProbes: DependencyProbes = {
 		if (!config.ok) return { identityStorage: false, usageLedger: false };
 		try {
 			return await withDatabaseClient(config.connectionString, async (client) => {
-				const result = await client.query<{
-					identity_ready: boolean;
-					ledger_ready: boolean;
-				}>(`select
-					to_regclass('public.accounts') is not null
-						and to_regclass('public.api_keys') is not null
-						and to_regclass('public.api_key_scopes') is not null as identity_ready,
-					to_regclass('public.account_usage_limits') is not null
-						and to_regclass('public.api_key_usage_limits') is not null
-						and to_regclass('public.api_key_usage_buckets') is not null
-						and to_regclass('public.request_traces') is not null
-						and to_regclass('public.usage_attempts') is not null
-						and to_regclass('public.usage_ledger_entries') is not null
-						and to_regclass('public.usage_pending_reservations') is not null as ledger_ready`);
-				const row = result.rows[0];
-				return { identityStorage: row?.identity_ready === true, usageLedger: row?.ledger_ready === true };
+				const requiredTables = [...IDENTITY_STORAGE_TABLES, ...USAGE_LEDGER_TABLES];
+				const result = await client.query<{ tablename: string }>(
+					`select tablename from pg_catalog.pg_tables
+					 where schemaname = current_schema() and tablename = any($1::text[])
+					 order by tablename`,
+					[requiredTables],
+				);
+				return databaseDependencyFromTables(result.rows.map((row) => row.tablename));
 			});
 		} catch {
 			return { identityStorage: false, usageLedger: false };

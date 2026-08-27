@@ -111,9 +111,9 @@ pnpm --filter @senkocode/api db:generate
 pnpm --filter @senkocode/api db:check
 ```
 
-初回IAM migrationはdevelopment/test Railway Postgresへ適用・検証済みです。account usage、content-free
-request trace、API key usage limitの追加migrationは生成済みですが、development/testを含むlive DBにはまだ適用して
-いません。production DBにも追加適用していません。
+`0000`から`0005`までの全migrationはdevelopment/test Railway Postgresへ適用・検証済みです。検証はmigrationの
+件数・順序・timestamp・SQL hash、table/column/type/nullability、外部キー、check、index、TLSを厳密に照合します。
+production DBには適用していません。
 Workerの直接接続コードとDB認証は実装済みですが、Cloudflare secret設定・実Workerからの接続確認・専用runtime
 DB roleの作成は未実施です。これらの外部変更と今後のmigrationは、対象を確認したうえで別途承認が必要です。
 
@@ -221,6 +221,10 @@ commit後の新しいリクエストへ直ちに反映されます。すでに�
 15分に一度へまとめます。account/team作成、account/team停止・復旧、key発行・rotation・失効はcontent-freeな監査
 eventと同じtransactionで保存します。
 
+高頻度にpollされ得る`GET /v1/models`は、認証成功・失敗を問わず`request_traces`へ保存しません。開始/完了は
+content-freeなstructured operational eventだけで観測し、model discovery由来のrequest-trace書き込みrateとretentionを
+ゼロに固定します。推論routeの最終envelopeは引き続きcontent-freeなrequest traceとして保存します。
+
 管理操作の証跡はaccount境界付きの最大100件cursor paginationで確認できます。レスポンスはaction、actor type、target、
 Senko request ID、時刻だけで、監査metadata、actor user/key ID、request body、secretは返しません。既知のaction、actor、target、
 UUID、Senko request ID形式だけをallowlistし、未審査の監査event形式が混ざったpageはfail closedします。
@@ -234,6 +238,7 @@ Authorization: Bearer <SENKO_ADMIN_TOKEN>
 identity/usage schema、Admission Durable Object、route別Provider Pool Durable Objectを検査します。
 `SENKO_ADMIN_TOKEN`が必要で、レスポンスは`ok` / `failed` / `not_checked`だけを返し、URL、secret、DB error、
 provider credentialを公開しません。providerへ推論requestは送らないため、外部providerの可用性は別のbounded canaryで確認します。
+identity/usage schemaは必要tableを全件照合するため、一部だけ存在する状態をhealthyとして扱いません。
 publicな`GET /health`はWorker processのlivenessだけを示します。
 
 localhost限定を既定にした再現可能なauthentication/admission/streaming/settlement負荷プロファイルは

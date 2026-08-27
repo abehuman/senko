@@ -7,6 +7,8 @@ const MAX_ATTEMPTS_PER_TRACE = 16;
 
 type SupportFailureReason = "configuration_error" | "not_found" | "unavailable";
 export type RequestTraceEndpoint = "chat_completions" | "models" | "responses";
+export type PersistedRequestTraceEndpoint = Exclude<RequestTraceEndpoint, "models">;
+const PERSISTED_REQUEST_TRACE_ENDPOINTS = new Set<PersistedRequestTraceEndpoint>(["chat_completions", "responses"]);
 
 export type SupportResult<T> = { ok: true; value: T } | { message?: string; ok: false; reason: SupportFailureReason };
 
@@ -66,7 +68,7 @@ export interface RecordRequestInput {
 	accountId: string;
 	apiKeyId: string;
 	completedAt: Date;
-	endpoint: RequestTraceEndpoint;
+	endpoint: PersistedRequestTraceEndpoint;
 	failureCategory?: FailureCategory;
 	httpStatus: number;
 	method: "GET" | "POST";
@@ -222,6 +224,7 @@ export function createPostgresSupportService(clientFactory?: DatabaseClientFacto
 			if (!config.ok) return { message: config.message, ok: false, reason: "configuration_error" };
 			if (
 				!validRequestId(input.requestId) ||
+				!PERSISTED_REQUEST_TRACE_ENDPOINTS.has(input.endpoint) ||
 				!Number.isSafeInteger(input.httpStatus) ||
 				input.httpStatus < 100 ||
 				input.httpStatus > 599 ||

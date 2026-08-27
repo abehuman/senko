@@ -1,0 +1,1 @@
+ALTER TABLE "usage_ledger_entries" ADD COLUMN "over_limit_after_settlement" boolean DEFAULT false NOT NULL;

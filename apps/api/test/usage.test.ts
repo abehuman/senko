@@ -94,6 +94,7 @@ describe("PostgreSQL usage accounting", () => {
 		const queries: string[] = [];
 		const query = vi.fn(async (text: string) => {
 			queries.push(text);
+			if (text.startsWith("select status from accounts")) return { rows: [{ status: "active" }] };
 			if (text.includes("from account_usage_limits") && text.includes("for update")) return { rows: [limits()] };
 			if (text.startsWith("select status from api_keys")) return { rows: [{ status: "active" }] };
 			if (text.includes("insert into api_key_usage_limits")) return { rows: [keyLimits()] };
@@ -115,6 +116,9 @@ describe("PostgreSQL usage accounting", () => {
 				requestId: REQUEST_ID,
 			}),
 		).resolves.toMatchObject({ ok: true, value: { accountId: ACCOUNT_ID, apiKeyId: KEY_ID } });
+		expect(queries.findIndex((text) => text.startsWith("select status from accounts"))).toBeLessThan(
+			queries.findIndex((text) => text.includes("account_usage_limits")),
+		);
 		expect(queries.findIndex((text) => text.includes("account_usage_limits"))).toBeLessThan(
 			queries.findIndex((text) => text.includes("select status from api_keys")),
 		);
@@ -124,6 +128,7 @@ describe("PostgreSQL usage accounting", () => {
 
 	it("rejects API key limits that exceed the owning account limits", async () => {
 		const query = vi.fn(async (text: string) => {
+			if (text.startsWith("select status from accounts")) return { rows: [{ status: "active" }] };
 			if (text.includes("from account_usage_limits")) return { rows: [limits()] };
 			if (text.startsWith("select status from api_keys")) return { rows: [{ status: "active" }] };
 			return { rowCount: 1, rows: [] };
@@ -148,7 +153,7 @@ describe("PostgreSQL usage accounting", () => {
 		expect(query).toHaveBeenLastCalledWith("rollback");
 	});
 
-	it("locks account limits and all buckets before creating one reservation", async () => {
+	it("locks ownership and policy rows in one order before reservation buckets", async () => {
 		const queries: Array<{ text: string; values?: unknown[] }> = [];
 		const query = vi.fn(async (text: string, values?: unknown[]) => {
 			queries.push({ text, values });
@@ -192,9 +197,20 @@ describe("PostgreSQL usage accounting", () => {
 				resolvedModel: "provider/model",
 			}),
 		).resolves.toMatchObject({ ok: true, value: { attemptId: ATTEMPT_ID } });
-		expect(queries.findIndex(({ text }) => text.includes("account_usage_limits"))).toBeLessThan(
-			queries.findIndex(({ text }) => text.includes("insert into usage_attempts")),
+		const accountLock = queries.findIndex(({ text }) => text.startsWith("select id from accounts"));
+		const accountPolicyLock = queries.findIndex(({ text }) => text.includes("from account_usage_limits"));
+		const keyLock = queries.findIndex(({ text }) => text.startsWith("select id from api_keys"));
+		const keyPolicyLock = queries.findIndex(({ text }) => text.includes("from api_key_usage_limits"));
+		const accountBucketLock = queries.findIndex(
+			({ text }) => text.includes("from account_usage_buckets") && text.includes("for update"),
 		);
+		const attemptInsert = queries.findIndex(({ text }) => text.includes("insert into usage_attempts"));
+		expect(accountLock).toBeGreaterThanOrEqual(0);
+		expect(accountLock).toBeLessThan(accountPolicyLock);
+		expect(accountPolicyLock).toBeLessThan(keyLock);
+		expect(keyLock).toBeLessThan(keyPolicyLock);
+		expect(keyPolicyLock).toBeLessThan(accountBucketLock);
+		expect(accountBucketLock).toBeLessThan(attemptInsert);
 		expect(queries.filter(({ text }) => text.includes("insert into usage_ledger_entries"))).toHaveLength(1);
 		expect(queries.filter(({ text }) => text.includes("insert into usage_pending_reservations"))).toHaveLength(1);
 		expect(queries.at(-1)?.text).toBe("commit");
@@ -294,7 +310,9 @@ describe("PostgreSQL usage accounting", () => {
 	});
 
 	it("fails closed when the API key token bucket is exhausted even if the account has capacity", async () => {
+		const queries: string[] = [];
 		const query = vi.fn(async (text: string) => {
+			queries.push(text);
 			if (text.includes("from account_usage_limits")) return { rows: [limits()] };
 			if (text.includes("from api_key_usage_limits")) {
 				return { rows: [{ ...keyLimits(), minute_input_tokens: "100" }] };
@@ -349,6 +367,9 @@ describe("PostgreSQL usage accounting", () => {
 				resolvedModel: "provider/model",
 			}),
 		).resolves.toEqual({ dimension: "minute_input_tokens", ok: false, reason: "limit_exceeded" });
+		expect(queries.findIndex((text) => text.includes("from account_usage_buckets"))).toBeLessThan(
+			queries.findIndex((text) => text.includes("from api_key_usage_buckets")),
+		);
 		expect(query.mock.calls.some(([text]) => String(text).includes("insert into usage_attempts"))).toBe(false);
 		expect(query).toHaveBeenLastCalledWith("rollback");
 	});
@@ -472,8 +493,63 @@ describe("PostgreSQL usage accounting", () => {
 			1800,
 			"reservation",
 			"missing_provider_usage",
+			false,
 		]);
 		expect(queries.filter(({ text }) => text.includes("update api_key_usage_buckets"))).toHaveLength(3);
+	});
+
+	it("returns the original over-limit result when terminal settlement is retried", async () => {
+		const query = vi.fn(async (text: string) => {
+			if (text.includes("from usage_attempts where id")) {
+				return {
+					rows: [
+						{
+							account_id: ACCOUNT_ID,
+							api_key_id: KEY_ID,
+							api_key_policy_version: null,
+							currency: "USD",
+							day_window_start: "2026-08-25T00:00:00.000Z",
+							estimated_input_tokens: "100",
+							id: ATTEMPT_ID,
+							input_price_microunits_per_million_tokens: "2000000",
+							minute_window_start: "2026-08-25T01:02:00.000Z",
+							month_window_start: "2026-08-01T00:00:00.000Z",
+							output_price_microunits_per_million_tokens: "8000000",
+							pricing_version: "pricing-1",
+							reserved_cost_microunits: "1800",
+							reserved_output_tokens: "200",
+						},
+					],
+				};
+			}
+			if (text.includes("from usage_ledger_entries")) {
+				return {
+					rows: [
+						{
+							event_type: "conservative_settled",
+							over_limit_after_settlement: true,
+							settled_cost_microunits: "1800",
+							settled_input_tokens: "100",
+							settled_output_tokens: "200",
+							terminal_reason: "missing_provider_usage",
+						},
+					],
+				};
+			}
+			return { rowCount: 1, rows: [] };
+		});
+		const service = createPostgresUsageService(() => client(query as unknown as DatabaseClient["query"]));
+
+		await expect(
+			service.finalize(env(), {
+				accountId: ACCOUNT_ID,
+				attemptId: ATTEMPT_ID,
+				kind: "conservative_settled",
+				terminalReason: "missing_provider_usage",
+			}),
+		).resolves.toEqual({ ok: true, value: { overLimitAfterSettlement: true, settledCostMicrounits: 1800 } });
+		expect(query.mock.calls.some(([text]) => String(text).includes("account_usage_buckets"))).toBe(false);
+		expect(query).toHaveBeenLastCalledWith("commit");
 	});
 
 	it("claims and settles expired reservations in one skip-locked transaction", async () => {

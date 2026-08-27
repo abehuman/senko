@@ -71,14 +71,16 @@ const inferenceErrors = {
 	"504": errorResponse,
 };
 
-const inferenceSuccess = {
-	content: {
-		"application/json": { schema: { type: "object" } },
-		"text/event-stream": { schema: { type: "string" } },
-	},
-	description: "Validated provider JSON or event stream.",
-	headers: inferenceHeaders,
-};
+function inferenceSuccess(schemaName: "ChatCompletion" | "Response"): JsonObject {
+	return {
+		content: {
+			"application/json": { schema: { $ref: `#/components/schemas/${schemaName}` } },
+			"text/event-stream": { schema: { type: "string" } },
+		},
+		description: "Validated and normalized provider JSON or event stream.",
+		headers: inferenceHeaders,
+	};
+}
 
 export const openApiDocument: JsonObject = {
 	openapi: "3.1.0",
@@ -442,7 +444,7 @@ export const openApiDocument: JsonObject = {
 				description: "Creates one Chat Completion. Streams terminate with data: [DONE].",
 				operationId: "createChatCompletion",
 				requestBody: jsonBody("ChatCompletionRequest"),
-				responses: { "200": inferenceSuccess, ...inferenceErrors },
+				responses: { "200": inferenceSuccess("ChatCompletion"), ...inferenceErrors },
 				security: [{ SenkoApiKey: [] }],
 				tags: ["Inference"],
 				"x-senko-required-scope": "inference:chat",
@@ -453,7 +455,7 @@ export const openApiDocument: JsonObject = {
 				description: "Creates one Responses API result. Streams emit only validated, known events.",
 				operationId: "createResponse",
 				requestBody: jsonBody("ResponsesRequest"),
-				responses: { "200": inferenceSuccess, ...inferenceErrors },
+				responses: { "200": inferenceSuccess("Response"), ...inferenceErrors },
 				security: [{ SenkoApiKey: [] }],
 				tags: ["Inference"],
 				"x-senko-required-scope": "inference:responses",
@@ -730,12 +732,11 @@ export const openApiDocument: JsonObject = {
 				{ data: { items: { $ref: "#/components/schemas/Model" }, type: "array" }, object: { const: "list" } },
 				["data", "object"],
 			),
-			FunctionTool: {
-				additionalProperties: true,
-				properties: { type: { const: "function" } },
-				required: ["type"],
-				type: "object",
-			},
+			FunctionTool: functionToolSchema(),
+			ChatMessage: chatMessageSchema(),
+			ResponsesInputItem: responsesInputItemSchema(),
+			ChatCompletion: chatCompletionSchema(),
+			Response: responseSchema(),
 			ChatCompletionRequest: objectSchema(chatRequestProperties(), ["messages", "model"]),
 			ResponsesRequest: objectSchema(responsesRequestProperties(), ["input", "model"]),
 		},
@@ -819,14 +820,14 @@ function chatRequestProperties(): JsonObject {
 		frequency_penalty: { type: "number" },
 		max_completion_tokens: { maximum: 16384, minimum: 1, type: "integer" },
 		max_tokens: { maximum: 16384, minimum: 1, type: "integer" },
-		messages: { items: { type: "object" }, type: "array" },
+		messages: { items: { $ref: "#/components/schemas/ChatMessage" }, type: "array" },
 		model: { type: "string" },
 		n: { const: 1 },
 		parallel_tool_calls: { type: "boolean" },
 		presence_penalty: { type: "number" },
 		prompt_cache_key: { type: "string" },
 		reasoning_effort: { type: "string" },
-		response_format: { type: "object" },
+		response_format: responseFormatSchema(),
 		seed: { type: "integer" },
 		stop: { oneOf: [{ type: "string" }, { items: { type: "string" }, type: "array" }] },
 		store: { const: false, default: false },
@@ -837,7 +838,7 @@ function chatRequestProperties(): JsonObject {
 			type: "object",
 		},
 		temperature: { type: "number" },
-		tool_choice: { oneOf: [{ type: "string" }, { type: "object" }] },
+		tool_choice: toolChoiceSchema(),
 		tools: { items: { $ref: "#/components/schemas/FunctionTool" }, type: "array" },
 		top_p: { type: "number" },
 		verbosity: { type: "string" },
@@ -848,20 +849,433 @@ function responsesRequestProperties(): JsonObject {
 	return {
 		background: { const: false, default: false },
 		include: { items: { const: "reasoning.encrypted_content" }, type: "array" },
-		input: { oneOf: [{ type: "string" }, { items: {}, type: "array" }] },
+		input: {
+			oneOf: [{ type: "string" }, { items: { $ref: "#/components/schemas/ResponsesInputItem" }, type: "array" }],
+		},
 		instructions: { type: "string" },
 		max_output_tokens: { maximum: 16384, minimum: 1, type: "integer" },
 		model: { type: "string" },
 		parallel_tool_calls: { type: "boolean" },
 		prompt_cache_key: { type: "string" },
-		reasoning: { type: "object" },
+		reasoning: objectSchema(
+			{
+				effort: { enum: ["none", "minimal", "low", "medium", "high", "xhigh"], type: "string" },
+				summary: { enum: ["auto", "concise", "detailed"], type: "string" },
+			},
+			[],
+		),
 		store: { const: false, default: false },
 		stream: { type: "boolean" },
 		temperature: { type: "number" },
-		text: { type: "object" },
-		tool_choice: { oneOf: [{ type: "string" }, { type: "object" }] },
+		text: objectSchema(
+			{
+				format: responseFormatSchema(),
+				verbosity: { enum: ["low", "medium", "high"], type: "string" },
+			},
+			[],
+		),
+		tool_choice: toolChoiceSchema(),
 		tools: { items: { $ref: "#/components/schemas/FunctionTool" }, type: "array" },
 		top_p: { type: "number" },
 		truncation: { type: "string" },
+	};
+}
+
+function functionToolSchema(): JsonObject {
+	return objectSchema(
+		{
+			function: objectSchema(
+				{
+					description: { type: "string" },
+					name: { minLength: 1, type: "string" },
+					parameters: { additionalProperties: true, type: "object" },
+					strict: { type: "boolean" },
+				},
+				["name", "parameters"],
+			),
+			type: { const: "function" },
+		},
+		["function", "type"],
+	);
+}
+
+function toolChoiceSchema(): JsonObject {
+	return {
+		oneOf: [
+			{ enum: ["auto", "none", "required"], type: "string" },
+			objectSchema(
+				{
+					function: objectSchema({ name: { minLength: 1, type: "string" } }, ["name"]),
+					type: { const: "function" },
+				},
+				["function", "type"],
+			),
+			objectSchema({ name: { minLength: 1, type: "string" }, type: { const: "function" } }, ["name", "type"]),
+		],
+	};
+}
+
+function responseFormatSchema(): JsonObject {
+	return {
+		oneOf: [
+			objectSchema({ type: { const: "text" } }, ["type"]),
+			objectSchema({ type: { const: "json_object" } }, ["type"]),
+			objectSchema(
+				{
+					json_schema: objectSchema(
+						{
+							description: { type: "string" },
+							name: { minLength: 1, type: "string" },
+							schema: { additionalProperties: true, type: "object" },
+							strict: { type: "boolean" },
+						},
+						["name", "schema"],
+					),
+					type: { const: "json_schema" },
+				},
+				["json_schema", "type"],
+			),
+		],
+	};
+}
+
+function chatContentSchema(): JsonObject {
+	return {
+		oneOf: [
+			{ type: "string" },
+			{ type: "null" },
+			{
+				items: {
+					oneOf: [
+						objectSchema({ text: { type: "string" }, type: { const: "text" } }, ["text", "type"]),
+						objectSchema(
+							{
+								image_url: {
+									oneOf: [
+										{ type: "string" },
+										objectSchema(
+											{ detail: { enum: ["auto", "low", "high"], type: "string" }, url: { type: "string" } },
+											["url"],
+										),
+									],
+								},
+								type: { const: "image_url" },
+							},
+							["image_url", "type"],
+						),
+						objectSchema(
+							{
+								input_audio: objectSchema(
+									{ data: { type: "string" }, format: { enum: ["mp3", "wav"], type: "string" } },
+									["data", "format"],
+								),
+								type: { const: "input_audio" },
+							},
+							["input_audio", "type"],
+						),
+					],
+				},
+				type: "array",
+			},
+		],
+	};
+}
+
+function chatToolCallSchema(): JsonObject {
+	return objectSchema(
+		{
+			function: objectSchema({ arguments: { type: "string" }, name: { minLength: 1, type: "string" } }, [
+				"arguments",
+				"name",
+			]),
+			id: { minLength: 1, type: "string" },
+			type: { const: "function" },
+		},
+		["function", "id", "type"],
+	);
+}
+
+function chatMessageSchema(): JsonObject {
+	const namedContent = (role: "developer" | "system" | "user") =>
+		objectSchema({ content: chatContentSchema(), name: { type: "string" }, role: { const: role } }, [
+			"content",
+			"role",
+		]);
+	return {
+		oneOf: [
+			namedContent("developer"),
+			namedContent("system"),
+			namedContent("user"),
+			objectSchema(
+				{
+					content: chatContentSchema(),
+					name: { type: "string" },
+					reasoning_content: { type: ["string", "null"] },
+					refusal: { type: ["string", "null"] },
+					role: { const: "assistant" },
+					tool_calls: { items: chatToolCallSchema(), type: "array" },
+				},
+				["role"],
+			),
+			objectSchema(
+				{
+					content: chatContentSchema(),
+					role: { const: "tool" },
+					tool_call_id: { minLength: 1, type: "string" },
+				},
+				["content", "role", "tool_call_id"],
+			),
+		],
+	};
+}
+
+function responsesContentSchema(): JsonObject {
+	return {
+		oneOf: [
+			{ type: "string" },
+			{
+				items: {
+					oneOf: [
+						objectSchema({ text: { type: "string" }, type: { const: "input_text" } }, ["text", "type"]),
+						objectSchema(
+							{
+								detail: { enum: ["auto", "low", "high"], type: "string" },
+								image_url: { type: "string" },
+								type: { const: "input_image" },
+							},
+							["image_url", "type"],
+						),
+						objectSchema(
+							{
+								input_audio: objectSchema(
+									{ data: { type: "string" }, format: { enum: ["mp3", "wav"], type: "string" } },
+									["data", "format"],
+								),
+								type: { const: "input_audio" },
+							},
+							["input_audio", "type"],
+						),
+					],
+				},
+				type: "array",
+			},
+		],
+	};
+}
+
+function responsesInputItemSchema(): JsonObject {
+	return {
+		oneOf: [
+			objectSchema(
+				{
+					content: responsesContentSchema(),
+					role: { enum: ["assistant", "developer", "system", "user"], type: "string" },
+					type: { const: "message" },
+				},
+				["content", "role", "type"],
+			),
+			objectSchema(
+				{
+					arguments: { type: "string" },
+					call_id: { minLength: 1, type: "string" },
+					name: { minLength: 1, type: "string" },
+					type: { const: "function_call" },
+				},
+				["arguments", "call_id", "name", "type"],
+			),
+			objectSchema(
+				{
+					call_id: { minLength: 1, type: "string" },
+					output: responsesContentSchema(),
+					type: { const: "function_call_output" },
+				},
+				["call_id", "output", "type"],
+			),
+			objectSchema(
+				{
+					encrypted_content: { type: "string" },
+					id: { type: "string" },
+					summary: {
+						items: objectSchema({ text: { type: "string" }, type: { const: "summary_text" } }, ["text", "type"]),
+						type: "array",
+					},
+					type: { const: "reasoning" },
+				},
+				["type"],
+			),
+		],
+	};
+}
+
+function tokenDetailsSchema(fields: string[]): JsonObject {
+	return objectSchema(Object.fromEntries(fields.map((field) => [field, { minimum: 0, type: "integer" }])), []);
+}
+
+function chatUsageSchema(): JsonObject {
+	return objectSchema(
+		{
+			completion_tokens: { minimum: 0, type: "integer" },
+			completion_tokens_details: tokenDetailsSchema([
+				"accepted_prediction_tokens",
+				"audio_tokens",
+				"reasoning_tokens",
+				"rejected_prediction_tokens",
+			]),
+			prompt_tokens: { minimum: 0, type: "integer" },
+			prompt_tokens_details: tokenDetailsSchema(["audio_tokens", "cached_tokens"]),
+			total_tokens: { minimum: 0, type: "integer" },
+		},
+		["completion_tokens", "prompt_tokens", "total_tokens"],
+	);
+}
+
+function chatCompletionSchema(): JsonObject {
+	return objectSchema(
+		{
+			choices: {
+				items: objectSchema(
+					{
+						finish_reason: { minLength: 1, type: "string" },
+						index: { const: 0 },
+						message: objectSchema(
+							{
+								content: { type: ["string", "null"] },
+								reasoning_content: { type: ["string", "null"] },
+								refusal: { type: ["string", "null"] },
+								role: { const: "assistant" },
+								tool_calls: { items: chatToolCallSchema(), type: "array" },
+							},
+							["content", "role"],
+						),
+					},
+					["finish_reason", "index", "message"],
+				),
+				maxItems: 1,
+				minItems: 1,
+				type: "array",
+			},
+			created: { minimum: 0, type: "integer" },
+			id: { minLength: 1, type: "string" },
+			model: { minLength: 1, type: "string" },
+			object: { const: "chat.completion" },
+			usage: chatUsageSchema(),
+		},
+		["choices", "created", "id", "model", "object", "usage"],
+	);
+}
+
+function responseUsageSchema(): JsonObject {
+	return objectSchema(
+		{
+			input_tokens: { minimum: 0, type: "integer" },
+			input_tokens_details: tokenDetailsSchema(["cached_tokens"]),
+			output_tokens: { minimum: 0, type: "integer" },
+			output_tokens_details: tokenDetailsSchema(["reasoning_tokens"]),
+			total_tokens: { minimum: 0, type: "integer" },
+		},
+		["input_tokens", "output_tokens", "total_tokens"],
+	);
+}
+
+function responseOutputItemSchema(): JsonObject {
+	const itemStatus = { enum: ["completed", "failed", "in_progress", "incomplete"], type: "string" };
+	return {
+		oneOf: [
+			objectSchema(
+				{
+					content: {
+						items: {
+							oneOf: [
+								objectSchema({ text: { type: "string" }, type: { const: "output_text" } }, ["text", "type"]),
+								objectSchema({ refusal: { type: "string" }, type: { const: "refusal" } }, ["refusal", "type"]),
+							],
+						},
+						type: "array",
+					},
+					id: { minLength: 1, type: "string" },
+					role: { const: "assistant" },
+					status: itemStatus,
+					type: { const: "message" },
+				},
+				["content", "id", "role", "status", "type"],
+			),
+			objectSchema(
+				{
+					arguments: { type: "string" },
+					call_id: { minLength: 1, type: "string" },
+					id: { minLength: 1, type: "string" },
+					name: { minLength: 1, type: "string" },
+					status: itemStatus,
+					type: { const: "function_call" },
+				},
+				["arguments", "call_id", "id", "name", "status", "type"],
+			),
+			objectSchema(
+				{
+					encrypted_content: { type: ["string", "null"] },
+					id: { minLength: 1, type: "string" },
+					status: itemStatus,
+					summary: {
+						items: objectSchema({ text: { type: "string" }, type: { const: "summary_text" } }, ["text", "type"]),
+						type: "array",
+					},
+					type: { const: "reasoning" },
+				},
+				["id", "status", "summary", "type"],
+			),
+		],
+	};
+}
+
+function responseSchema(): JsonObject {
+	return {
+		...objectSchema(
+			{
+				background: { type: "boolean" },
+				completed_at: { minimum: 0, type: ["integer", "null"] },
+				created_at: { minimum: 0, type: "integer" },
+				error: {
+					oneOf: [
+						{ type: "null" },
+						objectSchema({ code: { minLength: 1, type: "string" }, message: { minLength: 1, type: "string" } }, [
+							"code",
+							"message",
+						]),
+					],
+				},
+				id: { minLength: 1, type: "string" },
+				incomplete_details: {
+					oneOf: [{ type: "null" }, objectSchema({ reason: { minLength: 1, type: "string" } }, ["reason"])],
+				},
+				instructions: { type: ["string", "null"] },
+				max_output_tokens: { minimum: 0, type: ["integer", "null"] },
+				model: { minLength: 1, type: "string" },
+				object: { const: "response" },
+				output: { items: responseOutputItemSchema(), type: "array" },
+				parallel_tool_calls: { type: "boolean" },
+				previous_response_id: { type: ["string", "null"] },
+				status: { enum: ["completed", "failed", "incomplete"], type: "string" },
+				store: { type: "boolean" },
+				temperature: { type: ["number", "null"] },
+				top_p: { type: ["number", "null"] },
+				truncation: { type: "string" },
+				usage: { oneOf: [{ type: "null" }, responseUsageSchema()] },
+			},
+			["created_at", "id", "model", "object", "output", "status"],
+		),
+		allOf: [
+			{
+				oneOf: [
+					{
+						properties: { status: { const: "completed" }, usage: responseUsageSchema() },
+						required: ["status", "usage"],
+					},
+					{
+						properties: { status: { enum: ["failed", "incomplete"], type: "string" } },
+						required: ["status"],
+					},
+				],
+			},
+		],
 	};
 }

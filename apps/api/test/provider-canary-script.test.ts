@@ -260,4 +260,59 @@ describe("provider canary script", () => {
 			await close(brokenResponse.server);
 		}
 	});
+
+	it("rejects structurally valid Responses output without generated assistant text", async () => {
+		const emptyResponse = await listen((_request, response) => {
+			response.writeHead(200, { "content-type": "application/json", "x-request-id": `req_${"1".repeat(32)}` });
+			response.end(
+				JSON.stringify({
+					created_at: 1,
+					id: "resp_canary",
+					model: "provider/model",
+					object: "response",
+					output: [],
+					status: "completed",
+					usage: { input_tokens: 9, output_tokens: 0, total_tokens: 9 },
+				}),
+			);
+		});
+		try {
+			await expectFailure(["--base-url", emptyResponse.baseUrl], "empty_generated_output", {
+				SENKO_CANARY_API_KEY: "canary-secret",
+			});
+		} finally {
+			await close(emptyResponse.server);
+		}
+	});
+
+	it("rejects a Chat completion with an empty assistant message", async () => {
+		const emptyChat = await listen((_request, response) => {
+			response.writeHead(200, { "content-type": "application/json", "x-request-id": `req_${"2".repeat(32)}` });
+			response.end(
+				JSON.stringify({
+					choices: [
+						{
+							finish_reason: "stop",
+							index: 0,
+							message: { content: "  ", role: "assistant" },
+						},
+					],
+					created: 1,
+					id: "chatcmpl_canary",
+					model: "provider/model",
+					object: "chat.completion",
+					usage: { completion_tokens: 0, prompt_tokens: 9, total_tokens: 9 },
+				}),
+			);
+		});
+		try {
+			await expectFailure(
+				["--base-url", emptyChat.baseUrl, "--protocol", "chat-completions"],
+				"empty_generated_output",
+				{ SENKO_CANARY_API_KEY: "canary-secret" },
+			);
+		} finally {
+			await close(emptyChat.server);
+		}
+	});
 });

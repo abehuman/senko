@@ -171,6 +171,10 @@ function boundedString(value, allowEmpty = true) {
 	return typeof value === "string" && value.length <= MAX_RESPONSE_BYTES && (allowEmpty || value.length > 0);
 }
 
+function nonBlankString(value) {
+	return boundedString(value, false) && value.trim().length > 0;
+}
+
 function isNonNegativeInteger(value) {
 	return Number.isSafeInteger(value) && value >= 0;
 }
@@ -266,6 +270,24 @@ function validResponseOutputItem(value) {
 	return false;
 }
 
+function hasGeneratedOutput(protocol, body) {
+	if (protocol === "responses") {
+		return body.output.some(
+			(item) =>
+				item.type === "message" &&
+				item.role === "assistant" &&
+				item.content.some(
+					(content) =>
+						(content.type === "output_text" && nonBlankString(content.text)) ||
+						(content.type === "refusal" && nonBlankString(content.refusal)),
+				),
+		);
+	}
+	return body.choices.some(
+		(choice) => nonBlankString(choice.message.content) || nonBlankString(choice.message.refusal),
+	);
+}
+
 function validateSuccessBody(plan, body) {
 	if (!isRecord(body)) throw new Error("invalid_response_contract");
 	if (!boundedString(body.id, false)) {
@@ -296,6 +318,7 @@ function validateSuccessBody(plan, body) {
 	const usage = usageFromResponse(plan.protocol, body);
 	if (!usage) throw new Error("missing_usage");
 	if (usage.outputTokens > plan.maxOutputTokens) throw new Error("output_token_limit_exceeded");
+	if (!hasGeneratedOutput(plan.protocol, body)) throw new Error("empty_generated_output");
 	return { model: body.model, usage };
 }
 
