@@ -8,6 +8,7 @@
 		Globe2,
 		Layers3,
 		LockKeyhole,
+		ShieldCheck,
 		Terminal,
 		Zap,
 	} from "lucide-svelte";
@@ -37,6 +38,11 @@
 			icon: Globe2,
 			title: "接続先を自由に選べる",
 			copy: "base URL、APIキー、モデルを指定して、Senko以外のOpenAI互換LLM APIにも接続できます。",
+		},
+		{
+			icon: ShieldCheck,
+			title: "サイバー攻撃対策の実装にも",
+			copy: "ClaudeやGPTの最新モデルでは、悪用防止の安全制御により、防御目的の実装でも拒否される場合があります。Senkoなら用途に合うモデルを選び、許可された環境でのセキュリティ対策に活用できます。",
 		},
 		{
 			icon: Layers3,

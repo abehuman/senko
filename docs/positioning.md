@@ -32,6 +32,12 @@ The Senko CLI can be used in Japanese and connects to configurable OpenAI-compat
 free to use: teams can change the base URL, API key, protocol, and model without purchasing Senko's managed model
 service. Any fees charged by a selected external API provider remain the user's responsibility.
 
+This provider flexibility also supports authorized defensive security work. Claude and GPT models may refuse some
+cybersecurity implementations because of abuse-prevention safeguards, even when the intended use is defensive. Senko
+should explain that teams can choose a model suited to implementing security controls in systems they are authorized
+to test. Do not frame this as bypassing another provider's safeguards or imply that Senko removes the selected model's
+own safety controls.
+
 Japanese-native command shortcuts and other workflows tailored to Japanese users are part of the product direction.
 They must be described as planned until they are implemented.
 
@@ -51,6 +57,8 @@ different plans so that spend and capacity can match how each person uses coding
 - Lead with continuity and risk distribution for existing Claude Code and Codex users.
 - Present Senko as an additional option, not a universal replacement or a first-time AI coding tutorial.
 - Keep the free CLI distinct from paid inference. Never imply that third-party LLM usage is free.
+- Describe cybersecurity use cases as authorized defensive implementation, not unrestricted offensive capability or a
+  way to bypass model safeguards.
 - Describe Japanese interface features that exist today separately from Japanese-specific shortcuts that are planned.
 - Describe the managed model service and team subscriptions as planned until they are actually available.
 - Treat speed as one service attribute alongside cost and stability, not as Senko's entire category or positioning.
