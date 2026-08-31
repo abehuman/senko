@@ -114,7 +114,7 @@
 		<section class="border-b border-border">
 			<div class="mx-auto grid max-w-7xl items-center gap-16 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-[1.04fr_0.96fr] lg:px-10 lg:py-32">
 				<div class="min-w-0 max-w-2xl">
-					<h1 class="animate-in delay-1 text-balance text-5xl font-semibold leading-[1.08] tracking-[-0.065em] sm:text-6xl lg:text-7xl">
+					<h1 class="animate-in delay-1 text-balance text-4xl font-semibold leading-[1.18] tracking-[-0.065em] sm:text-5xl lg:text-6xl">
 						AIコーディングを、<span class="whitespace-nowrap bg-primary px-1 text-foreground">利用上限や障害</span>で止めない。
 					</h1>
 					<p class="animate-in delay-2 mt-7 max-w-xl text-base leading-8 text-muted-foreground sm:text-lg">
@@ -155,7 +155,7 @@
 		<section id="target" class="bg-card">
 			<div class="mx-auto grid max-w-7xl gap-14 px-5 py-24 sm:px-8 sm:py-32 lg:grid-cols-[0.72fr_1.28fr] lg:gap-24 lg:px-10">
 				<div class="min-w-0">
-					<h2 class="text-balance text-4xl font-semibold tracking-[-0.055em] sm:text-5xl">Claude CodeかCodexを、すでに日常利用しているチームへ。</h2>
+					<h2 class="text-balance text-3xl font-semibold leading-[1.2] tracking-[-0.055em] sm:text-4xl">Claude CodeかCodexを、すでに日常利用しているチームへ。</h2>
 					<p class="mt-5 max-w-md leading-7 text-muted-foreground">Senkoは既存のツールを置き換えるのではなく、必要なときに選べる第二の選択肢を提供します。</p>
 				</div>
 
@@ -176,7 +176,7 @@
 		<section id="current" class="border-t border-border bg-background">
 			<div class="mx-auto grid max-w-7xl gap-14 px-5 py-24 sm:px-8 sm:py-32 lg:grid-cols-[0.72fr_1.28fr] lg:gap-24 lg:px-10">
 				<div class="min-w-0">
-					<h2 class="text-balance text-4xl font-semibold tracking-[-0.055em] sm:text-5xl">無料で使える日本語対応CLI</h2>
+					<h2 class="text-balance text-3xl font-semibold leading-[1.2] tracking-[-0.055em] sm:text-4xl">無料で使える日本語対応CLI</h2>
 					<p class="mt-5 max-w-md leading-7 text-muted-foreground">Senkoの管理サービスに契約せず、macOSとLinuxで利用できます。外部LLM APIの利用料は各提供元から別途発生します。</p>
 				</div>
 
@@ -199,7 +199,7 @@
 		<section id="planned" class="border-y border-border bg-muted">
 			<div class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32 lg:px-10">
 				<div class="max-w-2xl">
-					<h2 class="text-balance text-4xl font-semibold tracking-[-0.055em] sm:text-5xl">これから提供するチーム向け機能</h2>
+					<h2 class="text-balance text-3xl font-semibold leading-[1.2] tracking-[-0.055em] sm:text-4xl">これから提供するチーム向け機能</h2>
 					<p class="mt-5 leading-7 text-muted-foreground">以下は現在のCLIには含まれておらず、まだ利用できません。</p>
 				</div>
 
@@ -218,7 +218,7 @@
 		<section id="configuration" class="bg-[#181a18] text-[#f5f5f1]">
 			<div class="mx-auto grid max-w-7xl items-center gap-14 px-5 py-24 sm:px-8 sm:py-32 lg:grid-cols-[0.86fr_1.14fr] lg:gap-24 lg:px-10">
 				<div class="min-w-0">
-					<h2 class="max-w-xl text-balance text-4xl font-semibold tracking-[-0.055em] sm:text-5xl">Senko以外のLLM APIも選べます。</h2>
+					<h2 class="max-w-xl text-balance text-3xl font-semibold leading-[1.2] tracking-[-0.055em] sm:text-4xl">Senko以外のLLM APIも選べます。</h2>
 					<p class="mt-6 max-w-lg leading-7 text-white/55">base URL、APIキー、モデルを変更して任意のOpenAI互換APIに接続できます。管理モデルサービスはまだ提供していません。</p>
 					<Button class="mt-9" href="https://github.com/abehuman/senko" target="_blank" rel="noreferrer">
 						<GitFork class="size-4" /> ソースコードを見る <ArrowRight class="size-4" />
