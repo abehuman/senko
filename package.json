@@ -30,7 +30,7 @@
 		"typecheck": "pnpm --filter @senkocode/cli typecheck && pnpm --filter @senkocode/api typecheck && pnpm --filter @senkocode/website check"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.2.2",
+		"@biomejs/biome": "2.5.12",
 		"@types/node": "22.17.2",
 		"typescript": "5.9.2",
 		"vitest": "3.2.4"
